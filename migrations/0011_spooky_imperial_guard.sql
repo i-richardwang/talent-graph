@@ -1,0 +1,1 @@
+ALTER TABLE "employee_educations" ADD COLUMN "education" text;

@@ -1,0 +1,257 @@
+{
+  "version": 3,
+  "skill_name": "attribute-raw-name",
+  "executor": "opencode",
+  "grader_executor": "opencode",
+  "default_model": "homelab/glm-5.1",
+  "grader_model": "homelab/glm-5.1",
+  "defaults": {
+    "default_baseline": "previous",
+    "runs_per_config": 1,
+    "timeout_s": 1200,
+    "num_workers": 2,
+    "per_run_setup": {
+      "env": {
+        "DATABASE_URL": [
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w1",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w2",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w3",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w4"
+        ],
+        "EMBEDDING_BASE_URL": [
+          "http://localhost:1234/v1",
+          "http://localhost:1234/v1",
+          "http://localhost:1234/v1",
+          "http://localhost:1234/v1"
+        ],
+        "EMBEDDING_MODEL": [
+          "text-embedding-qwen3-embedding-0.6b",
+          "text-embedding-qwen3-embedding-0.6b",
+          "text-embedding-qwen3-embedding-0.6b",
+          "text-embedding-qwen3-embedding-0.6b"
+        ],
+        "EMBEDDING_DIMENSIONS": [
+          "1024",
+          "1024",
+          "1024",
+          "1024"
+        ]
+      },
+      "script": "setup-reset-db.sh"
+    }
+  },
+  "cases": [
+    {
+      "id": 1,
+      "name": "bytedance/geo-suffix (base 60 含字节跳动;raw 字面变形地理后缀,A 路径直接 alias)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-1-bytedance-geo-A.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-1-bytedance-geo-A"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `字节跳动(上海)`;(2) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「字节跳动」或「ByteDance」或「Bytedance」中任一字符串。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 不字面含「字节跳动」/「ByteDance」/「Bytedance」中任一,或追溯不到任何对应的 canonicalName",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「字节跳动」/「ByteDance」/「Bytedance」/「上海」中任一字符串(即 Agent 不应错走 B 路径建子 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bytedance/english-name (base 60 含字节跳动;raw 是英文官方名,A 路径直接 alias)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-2-bytedance-en-A.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-2-bytedance-en-A"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `ByteDance`;(2) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「字节跳动」或「ByteDance」或「Bytedance」中任一字符串。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 不字面含「字节跳动」/「ByteDance」/「Bytedance」中任一,或追溯不到任何对应的 canonicalName",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「字节跳动」/「ByteDance」/「Bytedance」中任一字符串(即 Agent 不应错走 B 路径建子 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "baidu/legal-entity-name (base 60 含百度;raw 是百度的法律实体名,需 WebSearch 核实是法律外壳而非子业务,A 路径)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-3-baidu-legal-A.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-3-baidu-legal-A"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `北京百度网讯科技有限公司`;(2) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「百度」或「Baidu」或「baidu」中任一字符串。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 不字面含「百度」/「Baidu」/「baidu」中任一,或追溯不到任何对应的 canonicalName",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「百度」/「Baidu」/「baidu」/「网讯」中任一字符串(即 Agent 不应把法律实体名当作子业务建 child entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "alibaba/zhifubao-fix (base 60 + 蚂蚁集团已建 + raw 错挂阿里,Agent --force 改挂;两种正确路径)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-4-zhifubao-fix.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-4-zhifubao-fix"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `支付宝（中国）网络技术有限公司`;(2) 命令含 --force 标志;(3) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「蚂蚁」或字面含「支付宝」或字面含「Alipay」。不通过:--entity 参数 UUID 在 transcript 中追溯到的 canonicalName 字面含「阿里」,或追溯不到任何对应的 canonicalName",
+        "如果 transcript 中存在 entity add 命令且其 --canonical-name 参数字面含「支付宝」或「Alipay」:该 entity add 命令的 --parent 参数 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「蚂蚁」。不通过:--parent UUID 在 transcript 中追溯到的 canonicalName 字面含「阿里」,或 entity add 命令缺失 --parent 参数。如果 transcript 中不存在 --canonical-name 字面含「支付宝」或「Alipay」的 entity add 命令,此条不适用,视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「支付宝」或「Alipay」或「alipay」字符串作为子串"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "alibaba/cainiao-B (base 60 + 阿里已建 + 菜鸟未建,Agent 应建 child 挂 parent)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-5-cainiao-B.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-5-cainiao-B"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「菜鸟」字符串;(2) --type 参数字面值为 company;(3) --parent 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「阿里」",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `浙江菜鸟供应链有限责任公司`,且 --entity 参数的 UUID 等于 transcript 中 --canonical-name 字面含「菜鸟」的 entity add 命令的 JSON 返回 entityId。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 字面含「阿里」,或追溯到 canonicalName 不含「菜鸟」的其他 entity",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「菜鸟」或「cainiao」或「Cainiao」字符串作为子串",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「阿里」字符串"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unknown-parent/build-two-layers (raw 紫光展锐 母公司紫光集团 base 60 未注册;Agent 应建两层 紫光集团 + 紫光展锐,raw 挂紫光展锐)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-6-unknown-parent-C.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-6-unknown-parent-C"
+      },
+      "expectations": [
+        "transcript 中存在至少一个 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「紫光」字符串但不含「展锐」/「Unisoc」/「unisoc」(即是顶层紫光集团 entity,不是紫光展锐子主体);(2) --type 参数字面值为 company;(3) 命令不含 --parent 参数(顶层无 parent)",
+        "transcript 中存在至少一个 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「紫光展锐」或「Unisoc」或「unisoc」中任一字符串;(2) --type 参数字面值为 company;(3) --parent 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「紫光」但不含「展锐」/「Unisoc」/「unisoc」(即 parent 是紫光集团而非紫光展锐自身)",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `紫光展锐`,且 --entity 参数的 UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面含「紫光展锐」或「Unisoc」或「unisoc」中任一字符串(即挂在紫光展锐 entity 上,不是紫光集团)。不通过:--entity UUID 追溯到的 canonicalName 字面含「紫光」但不含「展锐」/「Unisoc」/「unisoc」(挂错母公司层),或追溯不到对应 canonicalName",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「紫光」或「展锐」或「Unisoc」或「unisoc」中任一字符串作为子串"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "alibaba/lazada-B (base 60 + 阿里已建 + LAZADA 未建,Agent 应建 child 挂 parent)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-7-lazada-A.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-7-lazada-A"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「Lazada」或「LAZADA」字符串;(2) --type 参数字面值为 company;(3) --parent 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「阿里」",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `LAZADA`,且 --entity 参数的 UUID 等于 transcript 中 --canonical-name 字面含「Lazada」或「LAZADA」的 entity add 命令的 JSON 返回 entityId。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 字面含「阿里」,或追溯到 canonicalName 不含「Lazada」与「LAZADA」的其他 entity",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「Lazada」或「LAZADA」或「lazada」字符串作为子串",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「阿里」字符串"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "bytedance/toutiao-conflict (base 含字节跳动 + 腾讯 + 已存「今日头条」child 挂字节;raw 今日头条历史错挂腾讯,Agent 应 alias add --force 改挂到现「今日头条」child)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-8-toutiao-conflict.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-8-toutiao-conflict"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `今日头条`;(2) 命令含 --force 标志;(3) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「今日头条」或「Toutiao」中任一字符串。不通过:--entity UUID 追溯到的 canonicalName 字面含「腾讯」/「Tencent」(没改挂走),或字面含「字节跳动」/「ByteDance」/「Bytedance」(错挂母公司),或追溯不到对应 canonicalName",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「今日头条」/「Toutiao」/「toutiao」中任一字符串(即 Agent 不应重建已存的「今日头条」child entity — entity search 已可见,直接复用)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「字节跳动」/「ByteDance」/「Bytedance」中任一字符串(即 Agent 不应重建母公司 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "cainiao/noop (base 60 + 菜鸟已建 child of 阿里 + raw 已正确挂菜鸟;周期重跑现状已对,Agent 应 noop)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-10-cainiao-noop.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-10-cainiao-noop"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「菜鸟」/「Cainiao」/「cainiao」中任一字符串(即 Agent 不应重建已存的菜鸟 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中所有 alias add 命令均不含 --force 标志(现状已正确,无须覆盖)",
+        "如 transcript 中存在 raw 参数字面值为 `浙江菜鸟供应链有限责任公司` 的 alias add 命令,该命令的 --entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面含「菜鸟」字符串作为子串(命中也允许,CLI 自动 already_mapped 是幂等通过)。如不存在该 alias add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "zhifubao/finer-or-noop (base 60 + 蚂蚁已建 child of 阿里 + raw 已挂蚂蚁;Agent 应保持现状或建支付宝子 entity 进一步精细化,不应改回阿里)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-11-zhifubao-finer-keep.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-11-zhifubao-finer-keep"
+      },
+      "expectations": [
+        "transcript 中所有 raw 参数字面值为 `支付宝（中国）网络技术有限公司` 的 alias add 命令,--entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面均不含「阿里」或「Alibaba」字符串作为子串(即 Agent 不应改回更粗的 entity)。如 transcript 中根本不存在该 alias add 命令,此条视为通过",
+        "如 transcript 中存在 --canonical-name 参数字面含「支付宝」或「Alipay」的 entity add 命令,该命令必须含 --parent 参数,且 --parent UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面含「蚂蚁」字符串(即支付宝若建为子 entity,必须挂在蚂蚁集团下)。如不存在该 entity add 命令,此条视为通过",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「蚂蚁」字符串(即 Agent 不应重建已存在的蚂蚁集团 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "invalid-placeholder/F (raw 某基金管理有限公司 是占位输入;Agent 应挂到「（无效输入）」固定占位 entity)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-13-invalid-placeholder.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-13-invalid-placeholder"
+      },
+      "expectations": [
+        "Agent 调用 alias add 命令,命令参数同时满足:(1) raw 参数字面值为 `某基金管理有限公司`;(2) --entity 参数的 UUID 在同一 transcript 全文中存在某个 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值字面含「（无效输入）」字符串(即挂到固定占位 entity 上)。不通过:--entity UUID 追溯到的 canonicalName 字面含「（无法识别）」(占位归类错误),或字面含「某」/「基金」(误建独立 entity 把占位词当真实公司)",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「某」/「基金管理」/「（无效输入）」/「（无法识别）」中任一字符串作为子串(即 Agent 不应补建占位 entity 也不应把占位词当真实公司建独立 entity)。如 transcript 中根本不存在 entity add 命令,此条视为通过"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "small-listed (raw 上海钢联电子商务股份有限公司 是真实小众上市公司;Agent 应建 entity 并 alias,可独立建或挂实际控股集团为 parent,不误挂 base 大公司、不挂占位、不跳过)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-14-independent-small.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-14-independent-small"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「上海钢联」或「钢联」或「Mysteel」或「mysteel」中任一字符串;(2) --type 参数字面值为 company",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `上海钢联电子商务股份有限公司`,且 --entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面含「上海钢联」或「钢联」或「Mysteel」或「mysteel」中任一字符串。不通过:--entity UUID 追溯到的 canonicalName 字面含「（无效输入）」/「（无法识别）」(误挂占位 entity),或字面含「阿里」/「百度」/「字节跳动」/「腾讯」/「京东」/「美团」/「网易」/「小米」/「华为」中任一字符串(误挂 base 大公司碰瓷),或 transcript 中根本不存在该 raw 的 alias add 命令(本设计下不应跳过)",
+        "如 transcript 中存在 --canonical-name 参数字面含「上海钢联」或「钢联」或「Mysteel」或「mysteel」的 entity add 命令且该命令含 --parent 参数,则 --parent UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面不含「阿里」/「百度」/「字节跳动」/「腾讯」/「京东」/「美团」/「网易」/「小米」/「华为」/「（无效输入）」/「（无法识别）」中任一字符串(即 parent 不是碰瓷大公司或占位 entity)。如该 entity add 命令不含 --parent 参数,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「上海钢联」或「钢联」或「Mysteel」或「mysteel」中任一字符串作为子串"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "jingdongfang/context-hint (raw 京东方 + 显示面板 hint;母公司北京电子控股是国资 holding 不在业务关心范围,Agent 应建独立 entity 无 parent,不误挂 base 京东)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-9-jingdongfang-hint-C.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-9-jingdongfang-hint-C"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「京东方」或「BOE」或「Boe」中任一字符串作为子串;(2) --type 参数字面值为 company;(3) 命令不含 --parent 参数(独立 entity 无 parent)",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `京东方`,且 --entity 参数 UUID 等于 transcript 中 --canonical-name 字面含「京东方」或「BOE」或「Boe」的 entity add 命令的 JSON 返回 entityId。不通过:--entity UUID 在 transcript 中追溯到的 canonicalName 字面含「京东」但不含「京东方」(误挂到 base 已有「京东」electric 商业 entity 而非新建京东方),或追溯不到对应 canonicalName",
+        "transcript 中所有 entity add 命令均不含 --parent 参数(母公司北京电子控股是国资持股平台,不在业务关心范围,本 case 应建独立 entity 不挂任何 parent)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「京东方」或「BOE」或「boe」中任一字符串作为子串"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "jinri-capital/hong-kong (raw 今日資本(香港)有限公司 是今日资本集团的香港主体;今日资本自身是顶层 VC 集团,base 60 未注册;Agent 应建一层 今日资本 无 parent,raw 挂上,不跳过)",
+      "prompt_template": "../../prompts/attribute-raw-name/subsidiary-lookup.md",
+      "prompt_file": "prompts/case-15-jinri-capital.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-15-jinri-capital"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,命令参数同时满足:(1) --canonical-name 参数字面含「今日资本」或「今日資本」或「Capital Today」或「capital today」中任一字符串;(2) --type 参数字面值为 company;(3) 命令不含 --parent 参数(顶层 VC 集团,无 parent)",
+        "Agent 调用 alias add 命令,raw 参数字面值为 `今日資本(香港)有限公司`,且 --entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字段值字面含「今日资本」或「今日資本」或「Capital Today」或「capital today」中任一字符串。不通过:--entity UUID 追溯到的 canonicalName 字面含「（无效输入）」/「（无法识别）」(误挂占位),或 transcript 中根本不存在该 raw 的 alias add 命令(本设计下不应跳过)",
+        "transcript 中所有 entity add 命令均不含 --parent 参数(今日资本自身就是顶层 VC 集团,不应建任何 child 挂母公司)",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「今日资本」或「今日資本」或「Capital Today」或「capital today」中任一字符串作为子串"
+      ]
+    }
+  ]
+}

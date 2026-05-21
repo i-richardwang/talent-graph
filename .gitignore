@@ -1,0 +1,30 @@
+node_modules/
+.env
+.env.local
+.env.test
+.env.*.local
+.envrc
+.npmrc
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.secret
+*.swp
+.tsbuildinfo
+dist/
+*.tgz
+.vscode/
+.idea/
+
+# 本地抽取的作业切片,不入库
+exports/
+
+# Claude Code 自动加载/插件相关,本地工具产物,不入库
+.claude/
+.agents/
+skills-lock.json
+
+# better-skills evaluation 工作区(每次 iterate 产生大量 transcript,不入库)
+# evals/<skill-name>/iteration-N/ 是每轮 executor + grader 的产物
+/evals/*/iteration-*/

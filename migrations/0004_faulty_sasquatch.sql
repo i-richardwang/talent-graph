@@ -1,0 +1,1 @@
+ALTER TABLE "entities" ALTER COLUMN "description" DROP NOT NULL;

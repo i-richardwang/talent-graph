@@ -1,0 +1,145 @@
+{
+  "version": 3,
+  "skill_name": "define-tag",
+  "executor": "opencode",
+  "grader_executor": "opencode",
+  "default_model": "homelab/glm-5.1",
+  "grader_model": "homelab/glm-5.1",
+
+  "defaults": {
+    "default_baseline": "previous",
+    "runs_per_config": 1,
+    "timeout_s": 900,
+    "num_workers": 2,
+    "per_run_setup": {
+      "env": {
+        "DATABASE_URL": [
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w1",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w2",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w3",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w4"
+        ]
+      },
+      "script": "setup-reset-db.sh"
+    }
+  },
+
+  "cases": [
+    {
+      "id": 1,
+      "name": "ivy/cold (空 DB,从 0 完整创建 8 所)",
+      "prompt_file": "prompts/ivy-league.md",
+      "env": { "TALENT_GRAPH_MODE": "full" },
+      "expectations": [
+        "Agent 调用 tag add 命令,命令参数同时满足:(1) --code 参数字面值匹配 ASCII snake_case(仅小写字母 / 数字 / 下划线),且字面包含「ivy」字符串作为子串;(2) --mode 参数字面值为 list;(3) --domain 参数字面值为 school;(4) --description 参数存在且非空字符串",
+        "Agent 调用 tag link 命令至少 8 次。这些 tag link 命令的 --entity 参数 UUID,在同一 transcript 全文中追溯到的 canonicalName 字段值,需覆盖以下 8 所院校(每所至少出现一次,字面子串匹配,英文中文皆可):「Harvard」/「哈佛」、「Yale」/「耶鲁」、「Princeton」/「普林斯顿」、「Columbia」/「哥伦比亚」、「Pennsylvania」/「Penn」/「宾夕法尼亚」、「Brown」/「布朗」、「Dartmouth」/「达特茅斯」、「Cornell」/「康奈尔」。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值",
+        "transcript 中所有 tag link 命令的 --entity 参数 UUID,在 transcript 中追溯到的 canonicalName 字段值,均不字面含以下任一非藤校字符串作为子串:「MIT」、「Massachusetts Institute」、「Stanford」、「斯坦福」、「Caltech」、「Berkeley」、「伯克利」、「Duke」、「杜克」、「Northwestern」、「西北大学」、「Johns Hopkins」、「约翰霍普金斯」",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具(任何主动外部搜索类工具),且 query 参数字面含「ivy」或「Ivy」或「IVY」或「藤」字符串作为子串"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "ivy/all-entities-no-tag (8 藤校+MIT+Stanford 已注册,tag 未建)",
+      "prompt_file": "prompts/ivy-league.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "ivy-all-entities-no-tag"
+      },
+      "expectations": [
+        "Agent 调用 tag add 命令,命令参数同时满足:(1) --code 参数字面包含「ivy」字符串作为子串;(2) --mode 参数字面值为 list;(3) --domain 参数字面值为 school",
+        "Agent 调用 tag link 命令至少 8 次。这些 tag link 命令的 --entity 参数 UUID,在同一 transcript 全文中追溯到的 canonicalName 字段值,需覆盖以下 8 所院校(每所至少出现一次,字面子串匹配):「Harvard」/「哈佛」、「Yale」/「耶鲁」、「Princeton」/「普林斯顿」、「Columbia」/「哥伦比亚」、「Pennsylvania」/「Penn」/「宾夕法尼亚」、「Brown」/「布朗」、「Dartmouth」/「达特茅斯」、「Cornell」/「康奈尔」",
+        "transcript 中所有 tag link 命令的 --entity 参数 UUID,在 transcript 中追溯到的 canonicalName 均不字面含「MIT」/「Massachusetts Institute」/「Stanford」/「斯坦福」字符串作为子串",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含上述 8 所藤校的英文官方名(grader 应核实 transcript 中无任何 entity add 命令针对 Harvard / Yale / Princeton / Columbia / Pennsylvania / Brown / Dartmouth / Cornell 中的任何一所)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「ivy」或「Ivy」或「IVY」或「藤」字符串作为子串"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ivy/partial-bind (tag+8 entity 已建,4 已挂,需挂剩 4)",
+      "prompt_file": "prompts/ivy-league.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "ivy-tag-partial-bind"
+      },
+      "expectations": [
+        "Agent 调用 tag link 命令至少 4 次。这些 tag link 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值,需覆盖以下 4 所院校(每所至少出现一次):「Pennsylvania」/「Penn」、「Brown」/「布朗」、「Dartmouth」/「达特茅斯」、「Cornell」/「康奈尔」",
+        "transcript 中所有 tag unlink 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值,均不字面含「Harvard」/「Yale」/「Princeton」/「Columbia」/「Pennsylvania」/「Penn」/「Brown」/「Dartmouth」/「Cornell」/「哈佛」/「耶鲁」/「普林斯顿」/「哥伦比亚」/「宾夕法尼亚」/「布朗」/「达特茅斯」/「康奈尔」中任一字符串作为子串。如 transcript 中根本不存在 tag unlink 命令,此条视为通过",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数字面均不含「Harvard」/「Yale」/「Princeton」/「Columbia」/「Pennsylvania」/「Penn」/「Brown」/「Dartmouth」/「Cornell」/「哈佛」/「耶鲁」/「普林斯顿」/「哥伦比亚」/「宾夕法尼亚」/「布朗」/「达特茅斯」/「康奈尔」中的任一字符串作为子串。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「ivy」或「Ivy」或「IVY」或「藤」字符串作为子串"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ivy/complete-noop (tag+8 entity+8/8 全挂,完工)",
+      "prompt_file": "prompts/ivy-league.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "ivy-complete"
+      },
+      "expectations": [
+        "transcript 中所有 tag unlink 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值,均不字面含「Harvard」/「Yale」/「Princeton」/「Columbia」/「Pennsylvania」/「Penn」/「Brown」/「Dartmouth」/「Cornell」/「哈佛」/「耶鲁」/「普林斯顿」/「哥伦比亚」/「宾夕法尼亚」/「布朗」/「达特茅斯」/「康奈尔」中任一字符串作为子串(即 Agent 不应解绑任何已挂的藤校)。如 transcript 中根本不存在 tag unlink 命令,此条视为通过",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「Harvard」/「Yale」/「Princeton」/「Columbia」/「Pennsylvania」/「Penn」/「Brown」/「Dartmouth」/「Cornell」/「哈佛」/「耶鲁」/「普林斯顿」/「哥伦比亚」/「宾夕法尼亚」/「布朗」/「达特茅斯」/「康奈尔」中任一字符串作为子串(即 Agent 不应试图新建已存在的藤校实体)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「ivy」或「Ivy」或「IVY」或「藤」字符串作为子串"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "mbb/cold (空 DB,从 0 完整创建 3 家)",
+      "prompt_file": "prompts/mbb.md",
+      "env": { "TALENT_GRAPH_MODE": "full" },
+      "expectations": [
+        "Agent 调用 tag add 命令,命令参数同时满足:(1) --code 参数字面值为 mbb 或字面包含「mbb」字符串作为子串(仅小写字母 / 数字 / 下划线);(2) --mode 参数字面值为 list;(3) --domain 参数字面值为 company;(4) --description 参数存在且非空字符串",
+        "Agent 调用 tag link 命令至少 3 次。这些 tag link 命令的 --entity 参数 UUID,在同一 transcript 全文中追溯到的 canonicalName 字段值,需覆盖以下 3 家(每家至少出现一次,字面子串匹配):「McKinsey」/「麦肯锡」、「Boston Consulting」/「BCG」/「波士顿咨询」、「Bain」/「贝恩」",
+        "Agent 调用的所有 tag link 命令,--match-mode 参数字面值均为 'subtree'(若命令省略 --match-mode 参数,因默认值即 subtree,此条对省略形式的 link 视为通过)",
+        "transcript 中所有 tag link 命令的 --entity 参数 UUID,在 transcript 中追溯到的 canonicalName 均不字面含以下任一非 MBB 字符串作为子串:「Deloitte」、「德勤」、「Accenture」、「埃森哲」、「Strategy&」、「Oliver Wyman」、「奥纬」、「Roland Berger」、「罗兰贝格」、「EY-Parthenon」、「安永」",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「mbb」或「MBB」或「McKinsey」或「Bain」或「BCG」字符串作为子串"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "mbb/tag-no-bind (tag 已建,无 entity,无 binding)",
+      "prompt_file": "prompts/mbb.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "mbb-tag-no-bind"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令至少 3 次。这些 entity add 命令的 --canonical-name 参数,字面分别覆盖以下 3 家(每家至少出现一次):「McKinsey」/「麦肯锡」、「Boston Consulting」/「BCG」/「波士顿咨询」、「Bain」/「贝恩」。每条 entity add 命令的 --type 参数字面值为 company,--description 参数存在且非空字符串",
+        "Agent 调用 tag link 命令至少 3 次。这些 tag link 命令的 --entity 参数 UUID,在同一 transcript 全文中追溯到上述 entity add 命令 JSON 返回的 entityId(即新建的 McKinsey / BCG / Bain entity)。--match-mode 参数字面值为 'subtree' 或省略",
+        "transcript 中所有 tag link 命令的 --entity 参数 UUID,在 transcript 中追溯到的 canonicalName 均不字面含「Deloitte」/「德勤」/「Accenture」/「埃森哲」/「Roland Berger」/「罗兰贝格」字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「mbb」或「MBB」或「McKinsey」或「Bain」或「BCG」字符串作为子串"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "mbb/error-correction (tag+3 MBB+Deloitte 全挂,需解绑 Deloitte)",
+      "prompt_file": "prompts/mbb.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "mbb-error-correction"
+      },
+      "expectations": [
+        "Agent 调用 tag unlink 命令至少 1 次。该 tag unlink 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「Deloitte」或「德勤」字符串作为子串",
+        "transcript 中所有 tag unlink 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值,均不字面含「McKinsey」/「麦肯锡」/「Boston Consulting」/「BCG」/「波士顿咨询」/「Bain」/「贝恩」中任一字符串作为子串(即 Agent 不应解绑 MBB 三家中任一家)",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「McKinsey」/「BCG」/「Bain」/「Deloitte」/「Boston Consulting」/「麦肯锡」/「贝恩」/「波士顿咨询」/「德勤」中任一字符串作为子串。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「mbb」或「MBB」或「McKinsey」或「Bain」或「BCG」字符串作为子串"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "mbb/entities-with-distractor (4 entity 含 Deloitte 已注册,tag 未建)",
+      "prompt_file": "prompts/mbb.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "mbb-entities-with-distractor"
+      },
+      "expectations": [
+        "Agent 调用 tag add 命令,--code 参数字面包含「mbb」字符串作为子串,--mode 参数字面值为 list,--domain 参数字面值为 company",
+        "Agent 调用 tag link 命令至少 3 次。这些 tag link 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值,需覆盖以下 3 家(每家至少出现一次):「McKinsey」/「麦肯锡」、「Boston Consulting」/「BCG」/「波士顿咨询」、「Bain」/「贝恩」。每条 tag link 命令的 --match-mode 参数字面值为 'subtree' 或省略",
+        "transcript 中所有 tag link 命令的 --entity 参数 UUID,在 transcript 中追溯到的 canonicalName 均不字面含「Deloitte」或「德勤」字符串作为子串",
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「McKinsey」/「BCG」/「Bain」/「Boston Consulting」/「Deloitte」/「麦肯锡」/「贝恩」/「波士顿咨询」/「德勤」中任一字符串作为子串。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「mbb」或「MBB」或「McKinsey」或「Bain」或「BCG」字符串作为子串"
+      ]
+    }
+  ]
+}

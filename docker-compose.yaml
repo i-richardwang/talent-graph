@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: talent-graph-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-talent_graph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent_graph}
+      POSTGRES_DB: ${POSTGRES_DB:-talent_graph}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talent_graph} -d ${POSTGRES_DB:-talent_graph}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 测试专用 PG 实例。默认 profile 不启动；显式 `docker compose --profile test up -d` 才起。
+  # POSTGRES_DB 用 `postgres`(系统默认),业务库由 tools/test/setup-pool.ts 动态建。
+  postgres-test:
+    profiles: ["test"]
+    image: pgvector/pgvector:pg16
+    container_name: talent-graph-pg-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-talent_graph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent_graph}
+      POSTGRES_DB: postgres
+    ports:
+      - "${POSTGRES_TEST_PORT:-5434}:5432"
+    volumes:
+      - pgdata-test:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talent_graph}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+    name: talent-graph-pgdata
+  pgdata-test:
+    name: talent-graph-pgdata-test

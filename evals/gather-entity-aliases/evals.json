@@ -1,0 +1,162 @@
+{
+  "version": 3,
+  "skill_name": "gather-entity-aliases",
+  "executor": "opencode",
+  "grader_executor": "opencode",
+  "default_model": "homelab/glm-5.1",
+  "grader_model": "homelab/glm-5.1",
+  "defaults": {
+    "default_baseline": "previous",
+    "runs_per_config": 1,
+    "timeout_s": 1200,
+    "num_workers": 3,
+    "per_run_setup": {
+      "env": {
+        "DATABASE_URL": [
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w1",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w2",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w3",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w4"
+        ]
+      },
+      "script": "setup-reset-db.sh"
+    }
+  },
+  "cases": [
+    {
+      "id": 1,
+      "name": "tsinghua/baseline (空 DB,5 字符变体 hit)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-1-tsinghua-baseline.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,--canonical-name 参数字面含「清华」字符串作为子串,--type 参数字面值为 school",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 5 个(每个至少出现一次,字面值精确匹配):「清华大学」、「Tsinghua University」、「Tsinghua Univ.」、「Tsinghua Unverisity」、「Tsinghua (清华)」。每条 alias add 命令的 --entity 参数 UUID,在同一 transcript 全文中追溯到的 canonicalName 字段值字面含「清华」字符串作为子串。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName 字段值",
+        "transcript 中所有 alias add 命令的 raw 参数,字面值仅限于以下 5 个之一:「清华大学」、「Tsinghua University」、「Tsinghua Univ.」、「Tsinghua Unverisity」、「Tsinghua (清华)」。不包含其他任何 raw 字符串"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tsinghua/tw-distractor (空 DB,含台湾清华同名跨地区干扰)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-2-tsinghua-tw-distractor.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full"
+      },
+      "expectations": [
+        "transcript 中至少存在一次 entity add 命令,其 --canonical-name 参数字面含「清华」字符串作为子串(且不含「国立」「台湾」字符串作为子串)。transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「国立清华」或「台湾清华」字符串作为子串",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 4 个(每个至少出现一次,字面值精确匹配):「清华大学」、「Tsinghua University」、「清华大学美术学院」、「清华大学新闻与传播学院」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「清华」字符串作为子串,且不字面含「国立」「台湾」",
+        "transcript 中所有 alias add 命令的 raw 参数,字面均不含「国立清华大学」或「台湾国立清华大学」字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「清华」或「Tsinghua」字符串作为子串"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "pku/attached-school (空 DB,含附中/中学跨教育阶段干扰)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-3-pku-attached-school.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full"
+      },
+      "expectations": [
+        "transcript 中至少存在一次 entity add 命令,其 --canonical-name 参数字面含「北京大学」或「北大」字符串作为子串(且不字面含「附中」「附属」字符串)",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 4 个(每个至少出现一次,字面值精确匹配):「北京大学」、「Peking University」、「北京大学光华管理学院」、「北京大学深圳研究生院」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「北京大学」或「北大」或「Peking」字符串作为子串(且不字面含「附中」「附属」)",
+        "transcript 中所有 alias add 命令的 raw 参数,字面均不含「北京大学附属中学」、「北大附中」、「北大附中河南分校」中任一字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「北京大学」或「北大」或「Peking」字符串作为子串"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "pku/affiliated-biz (空 DB,含北大青鸟/方正等关联企业挂名干扰)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-4-pku-affiliated-biz.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full"
+      },
+      "expectations": [
+        "transcript 中至少存在一次 entity add 命令,其 --canonical-name 参数字面含「北京大学」或「北大」字符串作为子串(且不字面含「青鸟」「方正」「资源」字符串)",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 3 个(每个至少出现一次,字面值精确匹配):「北京大学」、「Peking University」、「北京大学医学部(原北京医科大学)」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「北京大学」或「北大」或「Peking」字符串作为子串",
+        "transcript 中所有 alias add 命令的 raw 参数,字面均不含「北大青鸟」、「北大方正」、「北大资源」、「软件技术学院」、「研修学院」中任一字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「北京大学」或「北大」或「Peking」字符串作为子串"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "tsinghua/children-art (base 200 entity + 美院 child + 美院 alias 已挂)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-5-tsinghua-children-art.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-5-tsinghua-children-art"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「清华」字符串作为子串(即 Agent 不应试图新建任何带「清华」的 entity——清华母 entity 已在初态)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 4 个(每个至少出现一次,字面值精确匹配):「清华大学」、「Tsinghua University」、「Tsinghua Univ.」、「清华大学新闻与传播学院」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值字面含「清华」字符串作为子串",
+        "transcript 中不存在 raw 参数字面值为「清华大学美术学院」且命令含 --force 标志的 alias add 命令(即 Agent 看到该 raw 已挂在美院 child 上,不应 --force 改写到清华母 entity)",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「清华」或「Tsinghua」字符串作为子串"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "tsinghua/conflict-skip (base + 医学部 child + 协和 raw 已挂)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-6-tsinghua-conflict-skip.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-6-tsinghua-conflict-skip"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「清华」字符串作为子串(即 Agent 不应试图新建任何带「清华」的 entity——清华母 entity 已在初态)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 2 个(每个至少出现一次):「清华大学」、「Tsinghua University」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「清华」字符串作为子串",
+        "transcript 中不存在 raw 参数字面值为「清华大学医学部(北京协和医学院)」且命令含 --force 标志的 alias add 命令(即 Agent 看到该 raw 已挂在医学部 child 上,不应 --force 改写到清华母 entity)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "tsinghua/conflict-force (base + MIT entity + 苏世民书院 raw 错挂 MIT)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-7-tsinghua-conflict-force.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-7-tsinghua-conflict-force"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「清华」字符串作为子串(即 Agent 不应试图新建任何带「清华」的 entity——清华母 entity 已在初态)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "Agent 调用 alias add 命令,raw 参数字面值为「清华大学苏世民书院」,且该命令含 --force 标志,且 --entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字面含「清华」字符串作为子串(且不字面含「MIT」「Massachusetts Institute」)",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 3 个(每个至少出现一次):「清华大学」、「Tsinghua University」、「Tsinghua Univ.」。每条 alias add 命令的 --entity 参数 UUID 在 transcript 全文中追溯到的 canonicalName 字面含「清华」字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「苏世民」或「Schwarzman」字符串作为子串"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "pku/incremental (base + 北大 entity 已 alias 「北京大学」「Peking University」)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-8-pku-incremental.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-8-pku-incremental"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「北京大学」、「北大」、「Peking」中任一字符串作为子串(即 Agent 不应试图新建任何带北大字样的 entity——北大母 entity 已在初态)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 3 个(每个至少出现一次):「北京大学光华管理学院」、「北京大学医学部(原北京医科大学)」、「北京大学深圳研究生院」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字面含「北京大学」或「北大」或「Peking」字符串作为子串",
+        "transcript 中存在至少一次 tool_use 调用,name 字段为 WebSearch 或同等的网络搜索工具,query 参数字面含「北京大学」或「北大」或「Peking」字符串作为子串"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "zhejiang/non-headline-entity (空 DB,target 不是项目高频明星实体,验证 method 推广性)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-9-zhejiang-method-baseline.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full"
+      },
+      "expectations": [
+        "Agent 调用 entity add 命令,--canonical-name 参数字面含「浙江大学」或「浙大」字符串作为子串,--type 参数字面值为 school",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 5 个(每个至少出现一次,字面值精确匹配):「浙江大学」、「Zhejiang University」、「Zhejiang Univ.」、「ZJU」、「浙大」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值字面含「浙江大学」或「浙大」字符串作为子串",
+        "transcript 中所有 alias add 命令的 raw 参数,字面值仅限于以下 5 个之一:「浙江大学」、「Zhejiang University」、「Zhejiang Univ.」、「ZJU」、「浙大」。不包含其他任何 raw 字符串"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1777021002075,
+      "tag": "0000_loud_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777027517705,
+      "tag": "0001_nebulous_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777262307022,
+      "tag": "0002_lonely_yellow_claw",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777653224072,
+      "tag": "0003_nebulous_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777657893802,
+      "tag": "0004_faulty_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777694985241,
+      "tag": "0005_nostalgic_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777708218240,
+      "tag": "0006_tag_mode_split",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777710065362,
+      "tag": "0007_entity_type_no_employee",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777710764615,
+      "tag": "0008_drop_legacy_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777725000000,
+      "tag": "0009_explicit_mode_domain_and_hierarchy",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777832380530,
+      "tag": "0010_employees_hr_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778296722747,
+      "tag": "0011_spooky_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778414400000,
+      "tag": "0012_qwen3_embedding_dims",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778500800000,
+      "tag": "0013_drop_hnsw_indices",
+      "breakpoints": true
+    }
+  ]
+}

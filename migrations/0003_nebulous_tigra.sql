@@ -1,0 +1,1 @@
+ALTER TABLE "tag_entity_map" ADD COLUMN "reasoning" text;
