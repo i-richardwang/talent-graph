@@ -99,6 +99,13 @@
       "when": 1778500800000,
       "tag": "0013_drop_hnsw_indices",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778587200000,
+      "tag": "0014_domain_to_kind",
+      "breakpoints": true
     }
   ]
 }

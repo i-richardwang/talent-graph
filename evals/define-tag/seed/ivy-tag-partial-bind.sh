@@ -8,7 +8,7 @@ export TALENT_GRAPH_MODE=full
 
 talent-graph tag add \
   --code ivy_league --name "藤校" \
-  --mode list --domain school \
+  --mode list --kind school \
   --description "常春藤盟校,美国东北部 8 所私立研究型大学" >/dev/null
 
 add_entity_id() {

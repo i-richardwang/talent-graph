@@ -132,13 +132,13 @@ export interface TagOut {
   tagCode: string;
   tagName: string;
   // 'list'      → 名单标签:成员是实体清单,挂载走 tag link/unlink (写 tag_entity_map);
-  //                员工是否命中靠下游 JOIN 派生。domain 必非空。
+  //                员工是否命中靠下游 JOIN 派生。kind = 某 entity_type。
   // 'assertion' → 判定标签:成员是员工清单,挂载走 employee tag-add/tag-remove (写
-  //                employee_tag_map)。domain 必为 null。
+  //                employee_tag_map)。kind ∈ {skill, experience}。
   mode: "list" | "assertion";
-  // 名单标签下挂的实体类型(对齐 entities.entity_type),'school' / 'company' / ...;
-  // 判定标签为 null。
-  domain: string | null;
+  // 统一分类轴(恒非空):list 模式下是挂的实体类型(对齐 entities.entity_type,
+  // 'school' / 'company' / ...);assertion 模式下是判定子类型('skill' / 'experience')。
+  kind: string;
   description: string;
   createdAt: Date;
   updatedAt: Date;
@@ -150,7 +150,7 @@ export function serializeTag(row: TagRow): TagOut {
     tagCode: row.tagCode,
     tagName: row.tagName,
     mode: row.mode as "list" | "assertion",
-    domain: row.domain,
+    kind: row.kind,
     description: row.description,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

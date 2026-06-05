@@ -38,6 +38,7 @@ disable-model-invocation: true
 - **不属于和不确定的处理方式相同(都不写)**——employee_tag_map 只记录"属于",不记录"不属于"的结论。不确定时不要挂起等待,也不要当作"可能属于"写入
 - **profile 只拉一次**——`employee get <emp_id>` 只调一次,对所有 tag 统一通读判定
 - **占位 description 跳过该 tag**:tags.description 是必填字段,但如果内容是"TODO"或几个字的占位文本,显然无法据此判定,跳过该 tag 并向调用方报告
+- **description 完整但某条边界没划清也跳过,并点名是哪条**:description 是完整 prose、却对某个临界情形没明确划线(某项能力 / 经历算不算命中)时,不要凭常识替业务方先定一版——跳过该 tag,在输出里说明是哪条边界模糊。同一 tag 在多个员工身上反复撞同一条边界,是这条 description 需要业务方迭代的信号
 - **不撤销已有的标签**:即使本次判定为不属于但表里已有记录,不要自动 `employee tag-remove`——从"属于"变"不属于"通常意味着 profile 发生了实质变化(转岗/学历更新),撤销应走人工确认
 - **`resume.workList` 是 JSON 字符串而非数组**:自己解析后通读其中的 description / jobResp 等富文本字段;解析失败时跳过 resume 维度,按 workExperience + education 判
 

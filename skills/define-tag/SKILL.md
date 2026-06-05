@@ -1,11 +1,11 @@
 ---
 name: define-tag
 description: 增量维护一个业务标签的字段和挂载实体清单
-argument-hint: <domain> <标签名> [消歧说明]
+argument-hint: <kind> <标签名> [消歧说明]
 disable-model-invocation: true
 ---
 
-增量维护一个**名单标签**(`mode='list'`,如`藤校` / `MBB`):包括 tag 本身的字段(写入 `tags`,`mode='list'` + `domain` 必填)和挂在这个 tag 下的标准实体清单(写入 `tag_entity_map`)。
+增量维护一个**名单标签**(`mode='list'`,如`藤校` / `MBB`):包括 tag 本身的字段(写入 `tags`,`mode='list'` + `kind` 为实体类型)和挂在这个 tag 下的标准实体清单(写入 `tag_entity_map`)。
 
 **全自动执行**:单个实体判断有把握直接写、没把握跳过。唯一会暂停等调用方介入的情形是清单本身权威性不成立。
 
@@ -16,7 +16,7 @@ disable-model-invocation: true
 ## 目标
 
 给定:
-- `<domain>`:实体类型(`school` / `company`),写入 `tags.domain`,与 `entities.entity_type` 同值空间
+- `<kind>`:实体类型(`school` / `company`),写入 `tags.kind`,与 `entities.entity_type` 同值空间
 - `<标签名>`:业务标签中文名(如 `藤校` / `MBB` / `985`)
 - `[消歧说明]`:口径约束(可选,用于歧义标签,如"大厂 = 市值前 10 中国互联网公司")
 
@@ -39,7 +39,7 @@ disable-model-invocation: true
 
 **`name`** — 中文标签名。
 
-**`mode` / `domain`** — 本 skill 始终走 `--mode list --domain <domain>`(直接用任务参数 `<domain>`)。同一 tag 下所有挂载实体必须满足 `entity.entity_type = tag.domain`,schema 层拦跨域挂载。
+**`mode` / `kind`** — 本 skill 始终走 `--mode list --kind <kind>`(直接用任务参数 `<kind>`)。同一 tag 下所有挂载实体必须满足 `entity.entity_type = tag.kind`,schema 层拦跨域挂载。
 
 **`description`** — 一句话讲清业务含义。
 
@@ -53,7 +53,7 @@ disable-model-invocation: true
 
 ## 判决依据
 
-**tag 字段本身**(code / name / domain / description 业务口径):可以按消歧说明 + 常识定,不需要 WebSearch。
+**tag 字段本身**(code / name / kind / description 业务口径):可以按消歧说明 + 常识定,不需要 WebSearch。
 
 **"X 实体是否归属这个 tag"**:
 - 业内公认的稳定清单(藤校 8 所、MBB 3 家、C9 具体哪 9 所)→ **必须用 WebSearch 核实一遍**,不用训练记忆兜底
@@ -95,7 +95,7 @@ talent-graph tag members <code>
 
 ```bash
 talent-graph tag add --code <code> --name <name> \
-  --mode list --domain <domain> \
+  --mode list --kind <kind> \
   --description "<...>"
 ```
 
@@ -103,10 +103,10 @@ talent-graph tag add --code <code> --name <name> \
 
 对每个本轮应挂的实体:
 
-**4a. 确保实体存在**：先 `entity search "<candidate>" --type <domain>`，`data.exact[]` 里有 `canonicalName === "<candidate>"` 的条目就复用其 `entityId`；无精确匹配再 `entity add`：
+**4a. 确保实体存在**：先 `entity search "<candidate>" --type <kind>`，`data.exact[]` 里有 `canonicalName === "<candidate>"` 的条目就复用其 `entityId`；无精确匹配再 `entity add`：
 
 ```bash
-talent-graph entity add --type <domain> \
+talent-graph entity add --type <kind> \
   --canonical-name "<name>" --description "<...>"
 ```
 

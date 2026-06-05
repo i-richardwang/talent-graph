@@ -603,10 +603,10 @@ async function cmdEntityGet(positionals: string[]) {
 
 async function cmdTagList(opts: Flags) {
   const mode = optional(opts, "mode");
-  const domain = optional(opts, "domain");
+  const kind = optional(opts, "kind");
   const conditions = [];
   if (mode) conditions.push(eq(schema.tags.mode, mode));
-  if (domain) conditions.push(eq(schema.tags.domain, domain));
+  if (kind) conditions.push(eq(schema.tags.kind, kind));
   const q = db.select().from(schema.tags).$dynamic();
   if (conditions.length > 0) q.where(and(...conditions));
   const rows = await q;
@@ -687,7 +687,7 @@ async function cmdTagMembers(codeOrId: string) {
       tagId: tag.id,
       tagCode: tag.tagCode,
       mode: tag.mode,
-      domain: tag.domain,
+      kind: tag.kind,
       members,
     });
   }
@@ -711,7 +711,7 @@ async function cmdTagMembers(codeOrId: string) {
     tagId: tag.id,
     tagCode: tag.tagCode,
     mode: tag.mode,
-    domain: tag.domain,
+    kind: tag.kind,
     members,
   });
 }
@@ -831,12 +831,14 @@ async function cmdEntityAdd(opts: Flags) {
   emit("created", serializeEntity(row));
 }
 
+const ASSERTION_KINDS = ["skill", "experience"] as const;
+
 async function cmdTagAdd(opts: Flags) {
   const tagCode = normalizeName(required(opts, "code"));
   const tagName = normalizeName(required(opts, "name"));
   const mode = required(opts, "mode");
-  const domainRaw = optional(opts, "domain");
-  const domain = domainRaw ? normalizeName(domainRaw) : null;
+  const kindRaw = optional(opts, "kind");
+  const kind = kindRaw ? normalizeName(kindRaw) : null;
   const description = required(opts, "description");
 
   if (mode !== "list" && mode !== "assertion") {
@@ -844,14 +846,17 @@ async function cmdTagAdd(opts: Flags) {
       hint: "--mode 必须是 'list'(名单标签)或 'assertion'(判定标签)。",
     });
   }
-  if (mode === "list" && !domain) {
+  if (!kind) {
     return emitError("usage_error", {
-      hint: "名单标签 (--mode list) 必须给 --domain(挂哪类实体,对齐 entities.entity_type)。",
+      hint:
+        mode === "assertion"
+          ? "判定标签 (--mode assertion) 必须给 --kind(判定子类型:skill / experience)。"
+          : "名单标签 (--mode list) 必须给 --kind(挂哪类实体,对齐 entities.entity_type)。",
     });
   }
-  if (mode === "assertion" && domain) {
+  if (mode === "assertion" && !ASSERTION_KINDS.includes(kind as never)) {
     return emitError("usage_error", {
-      hint: "判定标签 (--mode assertion) 不挂实体,不要给 --domain。",
+      hint: `判定标签 (--mode assertion) 的 --kind 只能是 ${ASSERTION_KINDS.join(" / ")}(技能 / 业务经验)。`,
     });
   }
   if (description.trim().length === 0) {
@@ -868,12 +873,12 @@ async function cmdTagAdd(opts: Flags) {
     .where(eq(schema.tags.tagCode, tagCode));
 
   if (existing) {
-    if (existing.mode !== mode || existing.domain !== domain) {
+    if (existing.mode !== mode || existing.kind !== kind) {
       return emitError("tag_mode_conflict", {
         tagCode,
-        existing: { mode: existing.mode, domain: existing.domain },
-        incoming: { mode, domain },
-        hint: "mode 与 domain 是 tag 的身份分区,不可变更(包括 list ↔ assertion 互转、跨 domain 改挂)。请改用新的 tag_code,或先删除旧 tag。",
+        existing: { mode: existing.mode, kind: existing.kind },
+        incoming: { mode, kind },
+        hint: "mode 与 kind 是 tag 的身份分区,不可变更(包括 list ↔ assertion 互转、跨 kind 改挂)。请改用新的 tag_code,或先删除旧 tag。",
       });
     }
     return emit("already_exists", serializeTag(existing));
@@ -881,7 +886,7 @@ async function cmdTagAdd(opts: Flags) {
 
   const [row] = await db
     .insert(schema.tags)
-    .values({ tagCode, tagName, mode, domain, description })
+    .values({ tagCode, tagName, mode, kind, description })
     .returning();
   emit("created", serializeTag(row));
 }
@@ -926,14 +931,14 @@ async function cmdTagLink(opts: Flags) {
     .where(eq(schema.entities.id, entityId));
   if (!entity) return emitError("entity_not_found", { entityId });
 
-  if (entity.entityType !== tag.domain) {
+  if (entity.entityType !== tag.kind) {
     return emitError("cross_domain_rejected", {
       tagId: tag.id,
       tagCode: tag.tagCode,
-      tagDomain: tag.domain,
+      tagKind: tag.kind,
       entityId,
       entityEntityType: entity.entityType,
-      hint: "跨任务域链接被拒绝(tag.domain 必须等于 entity.entity_type)。",
+      hint: "跨任务域链接被拒绝(tag.kind 必须等于 entity.entity_type)。",
     });
   }
 
@@ -1039,8 +1044,8 @@ async function cmdEmployeeTagAdd(opts: Flags) {
       tagId: tag.id,
       tagCode: tag.tagCode,
       tagMode: tag.mode,
-      tagDomain: tag.domain,
-      hint: `这是名单标签(挂 ${tag.domain} 实体),员工是否命中靠下游 JOIN 派生,不直接打人。挂实体用 \`tag link --tag <code> --entity <uuid>\`。`,
+      tagKind: tag.kind,
+      hint: `这是名单标签(挂 ${tag.kind} 实体),员工是否命中靠下游 JOIN 派生,不直接打人。挂实体用 \`tag link --tag <code> --entity <uuid>\`。`,
     });
   }
 
@@ -1081,8 +1086,8 @@ async function cmdEmployeeTagRemove(opts: Flags) {
       tagId: tag.id,
       tagCode: tag.tagCode,
       tagMode: tag.mode,
-      tagDomain: tag.domain,
-      hint: `这是名单标签(挂 ${tag.domain} 实体)。撤实体用 \`tag unlink --tag <code> --entity <uuid>\`。`,
+      tagKind: tag.kind,
+      hint: `这是名单标签(挂 ${tag.kind} 实体)。撤实体用 \`tag unlink --tag <code> --entity <uuid>\`。`,
     });
   }
 
@@ -1612,9 +1617,9 @@ const READONLY_HELP = `Read-only commands
                                     extension. Run before deployment or when
                                     investigating environment issues.
 
-  tag list [--mode M] [--domain D]  List tags. --mode filters by 'list' /
-                                    'assertion'; --domain filters list-mode
-                                    tags by entity domain.
+  tag list [--mode M] [--kind K]    List tags. --mode filters by 'list' /
+                                    'assertion'; --kind filters by taxonomy
+                                    (school / company / skill / experience).
   tag get <code|id>                 Show one tag's definition + member count.
   tag members <code|id>             Show who/what's attached. List-mode tags
                                     return entities (with matchMode); assertion-
@@ -1656,14 +1661,16 @@ const READONLY_HELP = `Read-only commands
 
 const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
 
-  tag add --code --name --description --mode <list|assertion> [--domain D]
-                                    Create or reuse a tag. mode='list' (名单标签,
-                                    --domain required) → members are entities of
-                                    that domain, attached via tag link.
-                                    mode='assertion' (判定标签) → members are
-                                    employees, attached via employee tag-add.
-                                    Idempotent on code; mode/domain are immutable
-                                    once set (use new tag_code to change).
+  tag add --code --name --description --mode <list|assertion> --kind K
+                                    Create or reuse a tag. --kind is required for
+                                    both modes. mode='list' (名单标签) → kind is an
+                                    entity type (school / company / ...), members
+                                    are entities attached via tag link.
+                                    mode='assertion' (判定标签) → kind ∈
+                                    {skill, experience}, members are employees
+                                    attached via employee tag-add. Idempotent on
+                                    code; mode/kind are immutable once set (use new
+                                    tag_code to change).
 
   tag link --tag <code|id> --entity <uuid>
            [--match-mode <exact|subtree>] [--reasoning]

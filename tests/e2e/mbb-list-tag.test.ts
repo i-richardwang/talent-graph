@@ -26,7 +26,7 @@ interface TagMembersResp {
   tagId: string;
   tagCode: string;
   mode: "list" | "assertion";
-  domain: string | null;
+  kind: string;
   members: ListTagMember[];
 }
 
@@ -46,13 +46,13 @@ describe("MBB list-tag closed loop", () => {
   });
 
   test("create tag → entities → aliases → link → query members", async () => {
-    // 1. tag add — 名单标签 mbb (domain=company)
+    // 1. tag add — 名单标签 mbb (kind=company)
     const tag = await makeTag({
       dbUrl: lease.dbUrl,
       code: "mbb",
       name: "MBB",
       mode: "list",
-      domain: "company",
+      kind: "company",
       description:
         "三家顶级战略咨询公司(McKinsey / BCG / Bain)。判定边界:全球战略咨询业务为主,非纯审计 / 非投行。",
     });
@@ -129,7 +129,7 @@ describe("MBB list-tag closed loop", () => {
     );
     expect(members.envelope.ok).toBe(true);
     expect(members.envelope.data.mode).toBe("list");
-    expect(members.envelope.data.domain).toBe("company");
+    expect(members.envelope.data.kind).toBe("company");
     expect(members.envelope.data.members).toHaveLength(3);
 
     const memberIds = members.envelope.data.members
@@ -150,7 +150,7 @@ describe("MBB list-tag closed loop", () => {
       code: "ivy_league",
       name: "藤校",
       mode: "list",
-      domain: "school",
+      kind: "school",
       description: "美国常春藤盟校 8 所",
     });
 
@@ -160,7 +160,7 @@ describe("MBB list-tag closed loop", () => {
         "--code", "ivy_league",
         "--name", "藤校",
         "--mode", "list",
-        "--domain", "school",
+        "--kind", "school",
         "--description", "美国常春藤盟校 8 所",
       ],
       { dbUrl: lease.dbUrl },
@@ -176,7 +176,7 @@ describe("MBB list-tag closed loop", () => {
       code: "ivy_league",
       name: "藤校",
       mode: "list",
-      domain: "school",
+      kind: "school",
       description: "美国常春藤盟校 8 所",
     });
     const mck = await makeEntity({
@@ -191,6 +191,66 @@ describe("MBB list-tag closed loop", () => {
     );
     expect(res.envelope.ok).toBe(false);
     expect(res.envelope.status).toBe("cross_domain_rejected");
+    expect(res.exitCode).toBe(1);
+  });
+
+  test("assertion 标签:--kind skill / experience 成功创建", async () => {
+    const skill = await makeTag({
+      dbUrl: lease.dbUrl,
+      code: "rec_ranking_skill",
+      name: "推荐排序技能",
+      mode: "assertion",
+      kind: "skill",
+      description: "做过推荐 / 搜索 / 广告的召回或排序算法研发。",
+    });
+    expect(skill.tagCode).toBe("rec_ranking_skill");
+
+    const exp = await runCli<{ tagId: string; kind: string }>(
+      [
+        "tag", "add",
+        "--code", "zero_to_one_exp",
+        "--name", "0到1经验",
+        "--mode", "assertion",
+        "--kind", "experience",
+        "--description", "主导过一个业务从 0 到 1 搭建。",
+      ],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(exp.envelope.ok).toBe(true);
+    expect(exp.envelope.status).toBe("created");
+    expect(exp.envelope.data.kind).toBe("experience");
+  });
+
+  test("assertion 标签:缺 --kind 报错", async () => {
+    const res = await runCli(
+      [
+        "tag", "add",
+        "--code", "no_kind_tag",
+        "--name", "无kind",
+        "--mode", "assertion",
+        "--description", "缺 kind 应当被拒。",
+      ],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(false);
+    expect(res.envelope.status).toBe("usage_error");
+    expect(res.exitCode).toBe(1);
+  });
+
+  test("assertion 标签:--kind 非法值(school)被拒", async () => {
+    const res = await runCli(
+      [
+        "tag", "add",
+        "--code", "bad_kind_tag",
+        "--name", "非法kind",
+        "--mode", "assertion",
+        "--kind", "school",
+        "--description", "assertion 不接受 school 作 kind。",
+      ],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(false);
+    expect(res.envelope.status).toBe("usage_error");
     expect(res.exitCode).toBe(1);
   });
 });

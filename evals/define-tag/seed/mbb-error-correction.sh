@@ -8,7 +8,7 @@ export TALENT_GRAPH_MODE=full
 
 talent-graph tag add \
   --code mbb --name "MBB" \
-  --mode list --domain company \
+  --mode list --kind company \
   --description "MBB,顶级战略咨询 Top 3" >/dev/null
 
 add_and_link() {

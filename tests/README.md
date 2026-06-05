@@ -87,7 +87,7 @@ describe("<场景名,例如:tag.unlink 物理删 + audit_log 兜底>", () => {
 
   test("<行为名,正向>", async () => {
     // 1. 灌 fixture
-    const tag = await makeTag({ dbUrl: lease.dbUrl, code: "...", mode: "list", domain: "...", description: "..." });
+    const tag = await makeTag({ dbUrl: lease.dbUrl, code: "...", mode: "list", kind: "...", description: "..." });
     const entity = await makeEntity({ dbUrl: lease.dbUrl, type: "...", canonicalName: "..." });
     await linkTag({ dbUrl: lease.dbUrl, tag: tag.tagCode, entity: entity.entityId });
 

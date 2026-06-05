@@ -58,7 +58,8 @@ prompts/
   gather-entity-aliases/
     school-aliases.md
   tag-employee/
-    capability-experience-judgment.md
+    skill-judgment.md
+    experience-judgment.md
 ```
 
 新增 skill 或场景时按需建子目录。
@@ -89,8 +90,13 @@ prompts/
 - **任务**:让 Agent 拿到一个标准学校实体 + 一片候选 raw_name 清单(CSV),通读全片,把真正属于该校的写法登记成 alias,其余跳过。一次 Agent 任务处理一个目标实体;批量场景由调度方拆成多个并发任务各跑一个目标实体。
 - **本轮范围**:talent-graph 的学校 entity = 学历教育归属——挂母校名但不属于本校学历教育的主体一律跳过(附中 / 附属医院 / 园区 / 控股关联 / 培训机构等)。下属研究院 / 学院 / 改名前身 / 字符变体算归属。
 
-### `tag-employee/capability-experience-judgment.md`
+### `tag-employee/skill-judgment.md` 与 `tag-employee/experience-judgment.md`
 
-- **业务场景**:人才图谱标签清单切面三「能力与经验」(量化背景 / 区域工作经验 / 管理经验 / 0→1 创业 / 国际化经验 / 跨界 / 特殊经历 等)是判定标签——没有具名实体清单,要 LLM 通读员工 profile(教育 + 工作经历 + 简历原文)按 description 边界 prose 综合判决。
-- **任务**:让 Agent 拿到一个员工 + 一组判定 tag,通读 profile 后对每个 tag 判是否命中,hit 写 `employee_tag_map`,miss / 证据不足跳过。一次 Agent 任务处理一个员工 + 多个 tag(profile 一次拉,多 tag 复用);批量场景由调度方拆成多个并发任务各跑一个员工。
-- **本轮范围**:description 写了完整 prose 但没明确划某条线时(如"管理经验"没说要不要看下属规模),按"边界吃不准"跳过并在输出点名,让业务方下一轮迭代 description——不要 Agent 凭常识替业务方先填一版。
+判定标签(`mode='assertion'`)按 `kind` 分两类,各用一份 prompt——两类的判定证据口径不同,不要混批:
+
+- **`skill-judgment.md`(`kind='skill'`,技能 / 方法论)**:推荐排序 / 因果分析 / 实验设计 / 特征工程 / 模型训练上线 等。证据锚在工作经历正文里"具体用这套方法做了事"的段落,岗位名 / 团队名不算。
+- **`experience-judgment.md`(`kind='experience'`,业务情境阅历)**:0→1 搭业务 / 国际化出海 / 商业化变现 / 高速增长期 / 跨部门大型项目 等。证据锚在业务的阶段 / 性质 / 范围,"在国际化公司"不等于"做过国际化业务"。
+
+- **业务场景**:这两类都是判定标签——没有具名实体清单,要 LLM 通读员工 profile(教育 + 工作经历 + 简历原文)按 description 边界 prose 综合判决。
+- **任务**:让 Agent 拿到一个员工 + 一组同 `kind` 的判定 tag,通读 profile 后对每个 tag 判是否命中,hit 写 `employee_tag_map`,miss / 证据不足跳过。一次 Agent 任务处理一个员工 + 多个 tag(profile 一次拉,多 tag 复用);批量场景由调度方拆成多个并发任务各跑一个员工。
+- **domain 举例**:每份 prompt 列本域常见的模糊边界(技能类如"因果分析"算不算 AB 报表、经验类如"0→1"含不含内部孵化),帮 Agent 校准本域的临界形态。"边界吃不准就跳过并点名、让业务方迭代 description"这条判决方法是跨 domain 通用的,落在 `tag-employee/SKILL.md`,prompt 不复述。

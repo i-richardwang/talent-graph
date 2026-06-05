@@ -43,13 +43,13 @@ add_entity() {
 }
 
 add_tag() {
-  local code=$1 name=$2 domain=$3 desc=$4
+  local code=$1 name=$2 kind=$3 desc=$4
   local envelope
   envelope=$(bun src/cli.ts tag add \
     --code "$code" \
     --name "$name" \
     --mode list \
-    --domain "$domain" \
+    --kind "$kind" \
     --description "$desc")
   parse_field "$envelope" tagId
 }

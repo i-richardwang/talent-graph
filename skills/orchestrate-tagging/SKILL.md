@@ -82,7 +82,7 @@ talent-graph 的 batch 直接写生产库,test 模式也是真写——没有安
 业务方给一份 tag 名单(每行一个标签 + 可选消歧说明)。input CSV 字段 ASCII:
 
 ```csv
-tag_id,domain,tag_name,disambiguation
+tag_id,kind,tag_name,disambiguation
 1,school,清北,
 2,school,C9,
 3,school,985,
@@ -96,7 +96,7 @@ tag_id,domain,tag_name,disambiguation
 把对应 `prompts/define-tag/<scenario>.md`(`school-tier-tag.md` / `notable-employer-tag.md` 等)整篇复制进 `prompt-define-tag.txt`,末尾追加:
 
 ```
-[skill:define-tag] $BATCH_ITEM_DOMAIN "$BATCH_ITEM_TAG_NAME" "$BATCH_ITEM_DISAMBIGUATION"
+[skill:define-tag] $BATCH_ITEM_KIND "$BATCH_ITEM_TAG_NAME" "$BATCH_ITEM_DISAMBIGUATION"
 ```
 
 worker 看不到 prompts/ 目录——项目级约束(动态榜单锁年份、模糊概念要消歧等)必须整篇复制进来。只写触发命令一行,worker 会凭训练记忆发挥,不去 WebSearch 核实。
@@ -131,7 +131,7 @@ datapilot batch start <batch-id> --concurrency 1
 
 ### 1. 准备 input data
 
-**target 学校清单**——业务方工单指定要跑的 tag list(中文 tagName 或 ASCII tagCode 都可,orchestrator 用 `talent-graph tag list --domain school` 拿全集再匹配),抽各 tag 下挂的 entity canonical name 合并去重:
+**target 学校清单**——业务方工单指定要跑的 tag list(中文 tagName 或 ASCII tagCode 都可,orchestrator 用 `talent-graph tag list --kind school` 拿全集再匹配),抽各 tag 下挂的 entity canonical name 合并去重:
 
 ```bash
 set -e   # fail-fast: tag_not_found 等错误不静默继续
@@ -382,17 +382,17 @@ D000001,"quant_bg,regional_exp"
 D000002,"quant_bg,regional_exp"
 ```
 
-同一 batch 通常对所有员工跑同一组 tag——业务方分批策略决定哪些 tag 一起跑。
+同一 batch 通常对所有员工跑同一组 tag——业务方分批策略决定哪些 tag 一起跑。**一批内的 tag 应同 `kind`**(全 `skill` 或全 `experience`):两类判定证据不同(技能看方法论、经验看业务情境),用不同 prompt,不要混批。用 `talent-graph tag list --mode assertion --kind skill` / `--kind experience` 分别拿清单。
 
 ### 2. Prompt template
 
-把 `prompts/tag-employee/capability-experience-judgment.md` 整篇复制进 `prompt-assertion-tag.txt`,末尾追加:
+按本批 tag 的 `kind` 选 prompt——技能批用 `prompts/tag-employee/skill-judgment.md`,经验批用 `prompts/tag-employee/experience-judgment.md`,整篇复制进 `prompt-assertion-tag.txt`,末尾追加:
 
 ```
 [skill:tag-employee] $BATCH_ITEM_EMP_ID "$BATCH_ITEM_TAG_LIST"
 ```
 
-worker 看不到 prompts/ 目录——项目级约束(description 完整但边界模糊也跳过)必须整篇复制进来。只写触发命令一行,worker 会凭常识替业务方判定模糊边界,导致下游群体分析失真。
+worker 看不到 prompts/ 目录——项目级约束(该 kind 的证据口径 + 边界模糊也跳过)必须整篇复制进来。只写触发命令一行,worker 会凭常识替业务方判定模糊边界,导致下游群体分析失真。
 
 ### 3. 创建 + 启动
 
