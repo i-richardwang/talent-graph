@@ -5,8 +5,10 @@
 set -euo pipefail
 export TALENT_GRAPH_MODE=full
 
+# seed 握有 ground truth,下列是各自独立的实体:用 --force-new 断言新建,
+# 不被 entity add 的相似度防呆(similar_exists)拦下——那个防呆是给拿不准的 Agent 用的。
 add_entity() {
-  talent-graph entity add --type "$1" --canonical-name "$2" --description "$3" >/dev/null
+  talent-graph entity add --type "$1" --canonical-name "$2" --description "$3" --force-new >/dev/null
 }
 
 add_entity company "McKinsey & Company"      "McKinsey & Company — 顶级战略咨询 Top 3,全球"

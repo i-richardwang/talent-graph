@@ -10,10 +10,12 @@ talent-graph tag add \
   --mode list --kind school \
   --description "常春藤盟校,美国东北部 8 所私立研究型大学" >/dev/null
 
+# seed 握有 ground truth,下列是各自独立的实体:用 --force-new 断言新建,
+# 不被 entity add 的相似度防呆(similar_exists)拦下——那个防呆是给拿不准的 Agent 用的。
 add_and_link() {
   local name=$1 desc=$2
   local eid
-  eid=$(talent-graph entity add --type school --canonical-name "$name" --description "$desc" \
+  eid=$(talent-graph entity add --type school --canonical-name "$name" --description "$desc" --force-new \
     | jq -r '.data.entityId')
   talent-graph tag link --tag ivy_league --entity "$eid" \
     --reasoning "常春藤盟校 8 所之一(seed)" >/dev/null
