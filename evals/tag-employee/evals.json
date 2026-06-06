@@ -1,0 +1,138 @@
+{
+  "version": 3,
+  "skill_name": "tag-employee",
+  "executor": "opencode",
+  "grader_executor": "opencode",
+  "default_model": "homelab/glm-5.1",
+  "grader_model": "homelab/glm-5.1",
+
+  "defaults": {
+    "default_baseline": "none",
+    "runs_per_config": 1,
+    "timeout_s": 900,
+    "num_workers": 3,
+    "per_run_setup": {
+      "env": {
+        "DATABASE_URL": [
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w1",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w2",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w3",
+          "postgres://talent_graph:talent_graph@localhost:5434/talent_graph_test_w4"
+        ]
+      },
+      "script": "setup-reset-db.sh"
+    }
+  },
+
+  "cases": [
+    {
+      "id": 1,
+      "name": "causal/clean-hit (因果分析,简历多重因果方法,confident 命中)",
+      "prompt_file": "prompts/causal-clean-hit.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "causal-clean-hit"
+      },
+      "expectations": [
+        "处理结束时,emp D907312 被打上 causal(因果分析)标签,且该标签的置信度为 confident"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "causal/discriminate (因果分析命中 + 推荐排序不命中,同 profile 独立判别)",
+      "prompt_file": "prompts/causal-discriminate.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "causal-discriminate"
+      },
+      "expectations": [
+        "处理结束时,emp D823145 被打上 causal(因果分析)标签,且该标签的置信度为 confident",
+        "处理结束时,emp D823145 没有被打上 recrank(推荐排序)标签"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "causal/boundary (因果分析,证据卡在 description 边界,不可过度自信)",
+      "prompt_file": "prompts/causal-boundary.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "causal-boundary"
+      },
+      "expectations": [
+        "处理结束时,emp D651097 身上没有置信度为 confident 的 causal(因果分析)标签——要么没有 causal 标签,要么 causal 标签的置信度为 borderline"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "recrank/clean-hit (推荐排序,feed 流召回/排序模型全链路,confident 命中)",
+      "prompt_file": "prompts/recrank-clean-hit.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "recrank-clean-hit"
+      },
+      "expectations": [
+        "处理结束时,emp D742508 被打上 recrank(推荐排序)标签,且该标签的置信度为 confident"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "recrank/no-evidence (推荐排序,本人做推荐算法测试/QA 非建模,证据不足不写)",
+      "prompt_file": "prompts/recrank-no-evidence.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "recrank-no-evidence"
+      },
+      "expectations": [
+        "处理结束时,emp D518364 没有被打上 recrank(推荐排序)标签"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "recrank/boundary (推荐排序,向量召回检索工程卡 description 边界,不可过度自信)",
+      "prompt_file": "prompts/recrank-boundary.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "recrank-boundary"
+      },
+      "expectations": [
+        "处理结束时,emp D639172 身上没有置信度为 confident 的 recrank(推荐排序)标签——要么没有 recrank 标签,要么 recrank 标签的置信度为 borderline"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "zero_to_one/clean-hit (0→1 业务搭建,本人主导从 0 到 1 搭起新业务体系,confident 命中)",
+      "prompt_file": "prompts/zero-to-one-clean-hit.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "zero-to-one-clean-hit"
+      },
+      "expectations": [
+        "处理结束时,emp D805231 被打上 zero_to_one(0→1 业务搭建)标签,且该标签的置信度为 confident"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "zero_to_one/no-evidence (0→1 业务搭建,纯客户端功能开发无业务搭建,证据不足不写)",
+      "prompt_file": "prompts/zero-to-one-no-evidence.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "zero-to-one-no-evidence"
+      },
+      "expectations": [
+        "处理结束时,emp D417629 没有被打上 zero_to_one(0→1 业务搭建)标签"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "zero_to_one/boundary (0→1 业务搭建,以分析师身份参与他人 0→1 卡边界,不可过度自信)",
+      "prompt_file": "prompts/zero-to-one-boundary.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "zero-to-one-boundary"
+      },
+      "expectations": [
+        "处理结束时,emp D926473 身上没有置信度为 confident 的 zero_to_one(0→1 业务搭建)标签——要么没有 zero_to_one 标签,要么 zero_to_one 标签的置信度为 borderline"
+      ]
+    }
+  ]
+}

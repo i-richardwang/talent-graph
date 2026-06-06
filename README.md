@@ -102,6 +102,8 @@ docker compose up -d
                                 entity_type),assertion 模式为 skill / experience
           tag_entity_map        名单标签的实体清单 + match_mode(exact / subtree)
           employee_tag_map      判定标签的员工清单(emp_id 直挂)
+                                confidence ∈ {confident, borderline}:都是"属于",
+                                borderline = 大概率属于但 description 边界模糊
 
 实体层    entities              标准实体注册(按 entity_type + canonical_name 去重)
                                 parent_id 自引用 FK,表达从属层级(阿里巴巴 → 菜鸟)
@@ -118,7 +120,7 @@ docker compose up -d
 ### Tag 的两种模式
 
 - **名单标签**(`mode='list'`,`kind` 为实体类型,如 `school` / `company`):tag 是一个**实体清单**,员工是否命中靠下游 JOIN 实时派生(`employee.work.company → entity_aliases → entity → tag_entity_map`,沿 `match_mode` 决定是否包含后代)。挂载用 `tag link / unlink`。
-- **判定标签**(`mode='assertion'`,`kind` ∈ `{skill, experience}`):tag 是一个**员工清单**,AI/人工综合 profile 判决后直接固化在员工身上。挂载用 `employee tag-add / tag-remove`,写 `employee_tag_map`。
+- **判定标签**(`mode='assertion'`,`kind` ∈ `{skill, experience}`):tag 是一个**员工清单**,AI/人工综合 profile 判决后直接固化在员工身上。挂载用 `employee tag-add / tag-remove`,写 `employee_tag_map`。每行带 `confidence`(`confident` / `borderline`)——两者都是"属于",`borderline` 表示大概率属于但 `tags.description` 的边界对该员工的临界情形没划清(证据不足 / 不属于则根本不写)。**"成员"默认只取 confident**:`tag members` 默认、`tag get` 的 `memberCount`、下游裸 JOIN 都只算 confident;borderline 需 `--confidence borderline` 显式取,作为 description 需迭代的信号。
 
 **两条正交轴**:`mode` 是成员计算模型(list=派生 / assertion=物化),`kind` 是开放分类轴。名单标签的 `kind` 对齐 `entity_type`——常见 `school` / `company`,可扩展(`product` / `project` / ...);**同一名单标签下所有挂载实体必须满足 `entity.entity_type = tag.kind`**(CLI 在 `tag link` 拦跨域挂载)。判定标签的 `kind` 是判定子类型(`skill` 技能 / `experience` 业务经验),不参与挂载校验。
 
@@ -179,7 +181,7 @@ talent-graph <noun> <verb> [options]
 | `sync` | `sync changeset --since <ISO ts> --out <dir> [--targets <list>]` | — |
 | `embedding` | — | `embedding backfill` |
 
-`tag members` 是输出形态自适应的:判定标签直接返回 `[{empId, name, reasoning}]`(不需要再逐条 `employee get` 查姓名),名单标签返回标准实体清单 `[{entityId, canonicalName, description, matchMode, reasoning}]`。`entity get` 同时支持 UUID 和 `(type, canonical_name)` 二元组两种形式,返回值含 `parentId` 与直接子实体 `children`(一层)。
+`tag members` 是输出形态自适应的:判定标签直接返回 `[{empId, name, confidence, reasoning}]`(不需要再逐条 `employee get` 查姓名;默认只含 confident 成员,`--confidence borderline|all` 取边界模糊的),名单标签返回标准实体清单 `[{entityId, canonicalName, description, matchMode, reasoning}]`。`entity get` 同时支持 UUID 和 `(type, canonical_name)` 二元组两种形式,返回值含 `parentId` 与直接子实体 `children`(一层)。
 
 `talent-graph diag` 是前置自检,返回 DB 连通性 / pgvector 扩展 / embedding 配置等信息。任何自动化任务都建议先跑一次。
 

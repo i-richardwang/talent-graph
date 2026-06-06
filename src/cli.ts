@@ -612,8 +612,9 @@ async function cmdTagList(opts: Flags) {
   const rows = await q;
 
   // 名单标签 (mode='list') 的成员落 tag_entity_map,判定标签 (mode='assertion')
-  // 的成员落 employee_tag_map。同一 tagId 由 mode 唯一决定挂在哪张表,countMap
-  // 顺序覆盖即可,不会冲突。
+  // 的成员落 employee_tag_map。memberCount 的"成员"语义 = 确定属于:list 标签数
+  // 实体挂载,assertion 标签只数 confidence='confident' 的行;borderline 单列
+  // borderlineCount,不混入头部数字。
   const [entityCounts, empCounts] = await Promise.all([
     db
       .select({
@@ -625,19 +626,26 @@ async function cmdTagList(opts: Flags) {
     db
       .select({
         tagId: schema.employeeTagMap.tagId,
+        confidence: schema.employeeTagMap.confidence,
         count: sql<number>`count(*)::int`,
       })
       .from(schema.employeeTagMap)
-      .groupBy(schema.employeeTagMap.tagId),
+      .groupBy(schema.employeeTagMap.tagId, schema.employeeTagMap.confidence),
   ]);
   const countMap = new Map<string, number>();
+  const borderlineMap = new Map<string, number>();
   for (const c of entityCounts) countMap.set(c.tagId, c.count);
-  for (const c of empCounts) countMap.set(c.tagId, c.count);
+  for (const c of empCounts) {
+    if (c.confidence === "borderline") borderlineMap.set(c.tagId, c.count);
+    else countMap.set(c.tagId, c.count);
+  }
 
-  const data = rows.map((r) => ({
-    ...serializeTag(r),
-    memberCount: countMap.get(r.id) ?? 0,
-  }));
+  const data = rows.map((r) => {
+    const base = { ...serializeTag(r), memberCount: countMap.get(r.id) ?? 0 };
+    return r.mode === "assertion"
+      ? { ...base, borderlineCount: borderlineMap.get(r.id) ?? 0 }
+      : base;
+  });
 
   emit("ok", data);
 }
@@ -648,32 +656,65 @@ async function cmdTagGet(codeOrId: string) {
     return emitError("tag_not_found", { tagRef: codeOrId });
   }
   // mode 决定 count 哪张表 (list → tag_entity_map,assertion → employee_tag_map)。
-  const memberTable =
-    tag.mode === "assertion" ? schema.employeeTagMap : schema.tagEntityMap;
+  // assertion 的 memberCount 只数 confident(确定属于),borderline 单列。
+  if (tag.mode === "assertion") {
+    const counts = await db
+      .select({
+        confidence: schema.employeeTagMap.confidence,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.employeeTagMap)
+      .where(eq(schema.employeeTagMap.tagId, tag.id))
+      .groupBy(schema.employeeTagMap.confidence);
+    const memberCount =
+      counts.find((c) => c.confidence === "confident")?.count ?? 0;
+    const borderlineCount =
+      counts.find((c) => c.confidence === "borderline")?.count ?? 0;
+    return emit("ok", { ...serializeTag(tag), memberCount, borderlineCount });
+  }
+
   const [{ count: memberCount }] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(memberTable)
-    .where(eq(memberTable.tagId, tag.id));
+    .from(schema.tagEntityMap)
+    .where(eq(schema.tagEntityMap.tagId, tag.id));
 
   emit("ok", { ...serializeTag(tag), memberCount });
 }
 
 // `tag members` — return who/what is attached to a tag. Response shape varies
 // by tag mode:
-//   - 判定标签 (mode='assertion') → `members: [{ empId, name, reasoning }]`
+//   - 判定标签 (mode='assertion') → `members: [{ empId, name, confidence, reasoning }]`
 //   - 名单标签 (mode='list')      → `members: [{ entityId, canonicalName, description,
 //                                    matchMode, reasoning }]`
-async function cmdTagMembers(codeOrId: string) {
+// assertion 的成员默认只返 confidence='confident'(确定属于);--confidence borderline
+// 取边界模糊行(description 迭代信号),--confidence all 取全部。list 标签忽略该 flag。
+async function cmdTagMembers(codeOrId: string, opts: Flags) {
   const tag = await resolveTag(codeOrId);
   if (!tag) {
     return emitError("tag_not_found", { tagRef: codeOrId });
   }
 
   if (tag.mode === "assertion") {
+    const confidenceFilter = optional(opts, "confidence") ?? "confident";
+    if (
+      confidenceFilter !== "confident" &&
+      confidenceFilter !== "borderline" &&
+      confidenceFilter !== "all"
+    ) {
+      return emitError("invalid_confidence", {
+        confidence: confidenceFilter,
+        hint: "--confidence 仅取 'confident'(默认,确定属于)、'borderline'(边界模糊)或 'all'(全部)。",
+      });
+    }
+    const conditions = [eq(schema.employeeTagMap.tagId, tag.id)];
+    if (confidenceFilter !== "all") {
+      conditions.push(eq(schema.employeeTagMap.confidence, confidenceFilter));
+    }
     const members = await db
       .select({
         empId: schema.employees.empId,
         name: schema.employees.name,
+        confidence: schema.employeeTagMap.confidence,
         reasoning: schema.employeeTagMap.reasoning,
       })
       .from(schema.employeeTagMap)
@@ -681,13 +722,14 @@ async function cmdTagMembers(codeOrId: string) {
         schema.employees,
         eq(schema.employeeTagMap.empId, schema.employees.empId),
       )
-      .where(eq(schema.employeeTagMap.tagId, tag.id))
+      .where(and(...conditions))
       .orderBy(schema.employees.name);
     return emit("ok", {
       tagId: tag.id,
       tagCode: tag.tagCode,
       mode: tag.mode,
       kind: tag.kind,
+      confidenceFilter,
       members,
     });
   }
@@ -1035,6 +1077,14 @@ async function cmdEmployeeTagAdd(opts: Flags) {
   const empId = required(opts, "emp");
   const tagRef = normalizeName(required(opts, "tag"));
   const reasoning = optional(opts, "reasoning");
+  const confidence = optional(opts, "confidence") ?? "confident";
+
+  if (confidence !== "confident" && confidence !== "borderline") {
+    return emitError("invalid_confidence", {
+      confidence,
+      hint: "confidence 仅取 'confident'(有把握命中)或 'borderline'(大概率属于但 description 边界模糊)。证据不足 / 不属于应不打标,不是 borderline。",
+    });
+  }
 
   const tag = await resolveTag(tagRef);
   if (!tag) return emitError("tag_not_found", { tagRef });
@@ -1056,7 +1106,10 @@ async function cmdEmployeeTagAdd(opts: Flags) {
   if (!employee) return emitError("employee_not_found", { empId });
 
   const [existing] = await db
-    .select({ id: schema.employeeTagMap.id })
+    .select({
+      id: schema.employeeTagMap.id,
+      confidence: schema.employeeTagMap.confidence,
+    })
     .from(schema.employeeTagMap)
     .where(
       and(
@@ -1065,13 +1118,19 @@ async function cmdEmployeeTagAdd(opts: Flags) {
       ),
     );
   if (existing) {
-    return emit("already_linked", { tagId: tag.id, empId });
+    // 幂等:已挂即返现状(含既有 confidence),不覆盖。升级 borderline→confident
+    // 需走重判覆盖流程,不在 tag-add 范围。
+    return emit("already_linked", {
+      tagId: tag.id,
+      empId,
+      confidence: existing.confidence,
+    });
   }
 
   await db
     .insert(schema.employeeTagMap)
-    .values({ tagId: tag.id, empId, reasoning });
-  emit("linked", { tagId: tag.id, empId });
+    .values({ tagId: tag.id, empId, confidence, reasoning });
+  emit("linked", { tagId: tag.id, empId, confidence });
 }
 
 async function cmdEmployeeTagRemove(opts: Flags) {
@@ -1271,11 +1330,14 @@ async function cmdEmployeeGet(empId: string) {
     .orderBy(sql`${schema.employeeResumes.updateTime} DESC NULLS LAST`)
     .limit(1);
 
+  // 员工已挂的判定标签——返回全部(含 borderline,带 confidence),让重判时能识别
+  // "本轮 tag 已判过"直接跳过,不论当初是 confident 还是 borderline。
   const tags = await db
     .select({
       tagId: schema.tags.id,
       tagCode: schema.tags.tagCode,
       tagName: schema.tags.tagName,
+      confidence: schema.employeeTagMap.confidence,
       reasoning: schema.employeeTagMap.reasoning,
     })
     .from(schema.employeeTagMap)
@@ -1621,9 +1683,15 @@ const READONLY_HELP = `Read-only commands
                                     'assertion'; --kind filters by taxonomy
                                     (school / company / skill / experience).
   tag get <code|id>                 Show one tag's definition + member count.
-  tag members <code|id>             Show who/what's attached. List-mode tags
+                                    Assertion tags: memberCount counts confident
+                                    members only; borderlineCount is separate.
+  tag members <code|id> [--confidence <confident|borderline|all>]
+                                    Show who/what's attached. List-mode tags
                                     return entities (with matchMode); assertion-
-                                    mode tags return employees.
+                                    mode tags return employees (with confidence).
+                                    --confidence defaults to 'confident' (only
+                                    confirmed members); 'borderline' surfaces
+                                    fuzzy-boundary hits, 'all' returns both.
 
   entity list [--type T]            List entities. Optional --type filter.
   entity get <uuid>                 Show an entity by UUID + aliases + tags +
@@ -1685,8 +1753,15 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     No-op if absent. Rejects assertion tags.
 
   employee tag-add --emp <emp_id> --tag <code|id> [--reasoning]
+                   [--confidence <confident|borderline>]
                                     Apply an assertion tag to an employee.
-                                    Idempotent. Rejects list-mode tags.
+                                    --confidence defaults to 'confident';
+                                    'borderline' = probably belongs but the tag
+                                    description's boundary is unclear for this
+                                    case (insufficient evidence → don't tag at
+                                    all, not borderline). Idempotent (existing
+                                    confidence is not overwritten). Rejects
+                                    list-mode tags.
   employee tag-remove --emp <emp_id> --tag <code|id>
                                     Withdraw. Records removal in audit log.
                                     No-op if absent. Rejects list-mode tags.
@@ -1747,6 +1822,7 @@ async function dispatch(
     case "tag.members":
       return cmdTagMembers(
         requirePositional(positionals, 0, "tag members", "code|id"),
+        opts,
       );
     case "tag.add":
       return cmdTagAdd(opts);

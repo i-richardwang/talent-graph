@@ -5,9 +5,21 @@ argument-hint: <emp_id> <tag_list>
 disable-model-invocation: true
 ---
 
-给定一个员工的 ID 和一组待判定的 tag,通读员工的完整 profile(教育经历、工作经历、简历原文),按每个 tag 的 `description` 里写明的判定标准决定**该员工是否属于这个 tag**——属于就写入 `employee_tag_map`,不属于或不确定就跳过。
+给定一个员工的 ID 和一组待判定的 tag,通读员工的完整 profile(教育经历、工作经历、简历原文),对每个 tag 判断**该员工是否属于它**,把"属于"的判定写入 `employee_tag_map` 并标置信度。
 
-**全自动执行**:本 skill 不与人交互。判定有把握就直接写,没把握就跳过。
+"属于"分两档写入(`confident` / `borderline`),"不属于"跳过不写。三个结果各自锚在什么:
+
+| 结果 | 什么时候 |
+|---|---|
+| `confident`(写入) | profile 里有本人**做了这个 tag 核心动作本身**的经历,且对照 `description` 清楚达标 |
+| `borderline`(写入) | 做了核心动作,但**算不算达标取决于 `description` 没划清的那条线**;reasoning 里点名是哪条线 |
+| 跳过(不写) | 没做这个核心动作本身,或做了但 `description` 明确排除 |
+
+核心动作 = `description` 定义的那件事本身。**身份(岗位 / 团队 / 公司)、相邻但不同的事、只把该主题当话题提及,都不算"做了"**,一律跳过。
+
+`borderline` 锚在 **`description` 没划清的线**,不锚在你的把握——"只是沾边 / 我不太确定"不是 `borderline`,是没做、跳过。
+
+**全自动执行**:本 skill 不与人交互。
 
 任务: $ARGUMENTS
 
@@ -19,7 +31,7 @@ disable-model-invocation: true
 - `<emp_id>`: 员工 ID
 - `<tag_list>`: 逗号分隔的 tag 标识列表,每项是 tagCode 或 tagName 都可以(如 `量化背景,区域工作经验` 或 `quant_bg,regional_exp`);两个字段都比一遍。省略时报错——不要默认拉全员所有 tag,明确范围避免无意义判定
 
-对每个 tag 综合判定:有把握判属于 → 写 mapping;不属于 / 证据不足 → 跳过(不写)。
+对每个 tag 综合判定,按上面三态决定写不写、写什么置信度。
 
 本 skill 只处理判定标签——`mode='list'` 的名单标签不在范围内。
 
@@ -35,11 +47,10 @@ disable-model-invocation: true
 
 ## 注意事项
 
-- **不属于和不确定的处理方式相同(都不写)**——employee_tag_map 只记录"属于",不记录"不属于"的结论。不确定时不要挂起等待,也不要当作"可能属于"写入
+- **只记录"属于"**——`confident` 和 `borderline` 都是"属于",都写入;"不属于"不写,不要挂起等待
 - **profile 只拉一次**——`employee get <emp_id>` 只调一次,对所有 tag 统一通读判定
-- **占位 description 跳过该 tag**:tags.description 是必填字段,但如果内容是"TODO"或几个字的占位文本,显然无法据此判定,跳过该 tag 并向调用方报告
-- **description 完整但某条边界没划清也跳过,并点名是哪条**:description 是完整 prose、却对某个临界情形没明确划线(某项能力 / 经历算不算命中)时,不要凭常识替业务方先定一版——跳过该 tag,在输出里说明是哪条边界模糊。同一 tag 在多个员工身上反复撞同一条边界,是这条 description 需要业务方迭代的信号
-- **不撤销已有的标签**:即使本次判定为不属于但表里已有记录,不要自动 `employee tag-remove`——从"属于"变"不属于"通常意味着 profile 发生了实质变化(转岗/学历更新),撤销应走人工确认
+- **占位 description 跳过该 tag**:tags.description 是必填字段,但如果内容是"TODO"或几个字的占位文本,显然无法据此判定,跳过该 tag(不写)并向调用方报告
+- **不撤销、不降级已有的标签**:即使本次判定为不属于但表里已有记录,不要自动 `employee tag-remove`;tag-add 对已挂的也幂等、不会改既有 confidence——从"属于"变"不属于"、或 confident↔borderline 的变动通常意味着 profile 发生了实质变化(转岗/学历更新),撤销 / 改判应走人工确认
 - **`resume.workList` 是 JSON 字符串而非数组**:自己解析后通读其中的 description / jobResp 等富文本字段;解析失败时跳过 resume 维度,按 workExperience + education 判
 
 ---
@@ -59,9 +70,11 @@ disable-model-invocation: true
 ## 写入
 
 ```bash
-talent-graph employee tag-add --emp <emp_id> --tag <tagId> --reasoning "<判定依据>"
+talent-graph employee tag-add --emp <emp_id> --tag <tagId> \
+  --confidence <confident|borderline> --reasoning "<判定依据>"
 ```
 
-`--reasoning` 一句话写清:profile 里的哪段经历或哪条学历命中了 description 的哪个条件——后续人工核查或重判时的关键依据。
+- `--confidence`:清楚达标填 `confident`,达标线没划清填 `borderline`(不传默认 `confident`)。不属于 / 没做 / 只沾边的**不调用本命令**。
+- `--reasoning` 一句话写清:profile 里的哪段经历或哪条学历做了 description 的核心动作、并怎么达标;**`borderline` 时还要点名是哪条达标线没划清**——后续人工核查、重判、以及业务方迭代 description 的关键依据。
 
 通读 profile 后批量调用,不要每个 tag 一次 Bash 往返。

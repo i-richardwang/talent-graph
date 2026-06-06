@@ -24,8 +24,12 @@ emp: <emp_id> (<name>)
 
 ---
 
+## 本次任务
+
+数据库连接通过 `DATABASE_URL` 环境变量注入。所有 `talent-graph ...` 命令直接用 `talent-graph <args...>` 调用(已在 PATH)。员工 profile、tag 定义都通过 `talent-graph` 命令从数据库读取。
+
 请开始处理:
 
 ```
-/tag-employee <emp_id> <tag_list>
+/tag-employee D805231 zero_to_one
 ```

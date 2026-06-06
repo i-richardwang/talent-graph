@@ -1,0 +1,55 @@
+{
+  "empId": "D417629",
+  "name": "刘子轩",
+  "hrStatus": "在职",
+  "workExperiences": [
+    {
+      "companyName": "北京新氧万维科技咨询有限公司",
+      "positionTitle": "android开发工程师",
+      "startDate": "2019-04-01",
+      "endDate": "2021-09-28",
+      "country": "CHN"
+    },
+    {
+      "companyName": "北京九识佳科技有限公司",
+      "positionTitle": "android开发工程师",
+      "startDate": "2017-07-01",
+      "endDate": "2019-02-28",
+      "country": "CHN"
+    }
+  ],
+  "educations": [
+    {
+      "school": "大连理工大学",
+      "major": "化学工程与工艺、计算机",
+      "degree": "学士学位",
+      "education": null,
+      "startDate": "2013-09-01",
+      "endDate": "2017-06-23"
+    }
+  ],
+  "resume": {
+    "workList": [
+      {
+        "companyDesc": "美股上市电商公司,主打新氧医美app,月活千万",
+        "companyName": "北京新氧万维科技咨询有限公司",
+        "description": "1.负责app内核心业务魔镜和首页开发与改版工作。\n2.负责魔镜性能优化与崩溃治理\n3.负责支持与完成部分架构工作,包括组件化等",
+        "startDate": "2019-04-01T00:00:00",
+        "endDate": "2023-10-25T12:03:07.434408",
+        "jobDuration": "4年6个月",
+        "title": "android工程师",
+        "toPresent": true
+      },
+      {
+        "companyDesc": "一家做互联网社交的创业公司,创办四年,人数30人,旗下有百万级应用小肚皮app。",
+        "companyName": "北京九识佳科技有限公司",
+        "description": "1.对android端app进行日常功能开发和维护\n2.对app进行内存、卡顿、模块化等优化\n3.参与产品功能设计与讨论",
+        "startDate": "2017-07-01T00:00:00",
+        "endDate": "2019-02-01T00:00:00",
+        "jobDuration": "1年7个月",
+        "title": "android工程师",
+        "toPresent": false
+      }
+    ]
+  }
+}

@@ -21,6 +21,10 @@ dist/
 # 本地抽取的作业切片,不入库
 exports/
 
+# 本地员工数据同步脚本(含数仓表名 / 内部路径,不进公开仓库)
+tools/prod/sync-employees-from-parquet.ts
+tools/prod/sync-resumes-from-csv.ts
+
 # Claude Code 自动加载/插件相关,本地工具产物,不入库
 .claude/
 .agents/
