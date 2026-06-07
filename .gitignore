@@ -33,3 +33,6 @@ skills-lock.json
 # better-skills evaluation 工作区(每次 iterate 产生大量 transcript,不入库)
 # evals/<skill-name>/iteration-N/ 是每轮 executor + grader 的产物
 /evals/*/iteration-*/
+
+# skill 在仓库根手动跑时产生的输出(eval 结果落 iteration-N/ 不在这)
+/outputs/

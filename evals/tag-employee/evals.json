@@ -133,6 +133,91 @@
       "expectations": [
         "处理结束时,emp D926473 身上没有置信度为 confident 的 zero_to_one(0→1 业务搭建)标签——要么没有 zero_to_one 标签,要么 zero_to_one 标签的置信度为 borderline"
       ]
+    },
+    {
+      "id": 10,
+      "name": "globalization/clean-hit (国际化出海,主导某品牌出海某国全链路,confident 命中)",
+      "prompt_file": "prompts/globalization-clean-hit.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "globalization-clean-hit"
+      },
+      "expectations": [
+        "处理结束时,emp D713620 被打上 globalization(国际化出海)标签,且该标签的置信度为 confident"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "globalization/no-evidence (国际化出海,任职跨国公司但本人纯国内区域业务,证据不足不写)",
+      "prompt_file": "prompts/globalization-no-evidence.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "globalization-no-evidence"
+      },
+      "expectations": [
+        "处理结束时,emp D384571 没有被打上 globalization(国际化出海)标签"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "globalization/boundary (国际化出海,国内岗边缘涉外卡 description 边界,不可过度自信)",
+      "prompt_file": "prompts/globalization-boundary.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "globalization-boundary"
+      },
+      "expectations": [
+        "处理结束时,emp D659408 身上没有置信度为 confident 的 globalization(国际化出海)标签——要么没有 globalization 标签,要么 globalization 标签的置信度为 borderline"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "cross/already-tagged (已挂 confident + 现读不命中,跳过判定、不重复 add、不 remove/降级)",
+      "prompt_file": "prompts/already-tagged.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "already-tagged"
+      },
+      "expectations": [
+        "处理结束时,emp D518364 身上的 recrank(推荐排序)标签置信度为 confident"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "cross/placeholder-desc (占位 description TODO 跳过并报告 + 正常 tag 照挂)",
+      "prompt_file": "prompts/placeholder-desc.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "placeholder-desc"
+      },
+      "expectations": [
+        "处理结束时,emp D907312 被打上 causal(因果分析)标签",
+        "处理结束时,emp D907312 没有被打上 tbd_skill(待定技能)标签"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "cross/employee-not-found (目标 emp 不存在,优雅退出报告、不误写)",
+      "prompt_file": "prompts/employee-not-found.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "employee-not-found"
+      },
+      "expectations": [
+        "处理过程中不存在把 emp D628451 挂到 causal(因果分析)标签的 tag-add 命令调用(员工不存在,应优雅跳过)"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "cross/partial-tag-missing (部分 tag 标识不存在,警告但继续处理存在的 tag)",
+      "prompt_file": "prompts/partial-tag-missing.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "partial-tag-missing"
+      },
+      "expectations": [
+        "处理结束时,emp D907312 被打上 causal(因果分析)标签(tag_list 中的 ghost_recall 不存在,不应阻断对 causal 的判定)"
+      ]
     }
   ]
 }
