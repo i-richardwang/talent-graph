@@ -1,0 +1,92 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+
+/* 技术档案册设计语言 —— token 定义见 web/DESIGN.md */
+@theme {
+  --font-sans:
+    "Geist Variable", ui-sans-serif, "PingFang SC", "Microsoft YaHei",
+    "Noto Sans SC", system-ui, sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-canvas: oklch(0.985 0.002 220);
+  --color-surface: oklch(1 0 0);
+  --color-sunken: oklch(0.976 0.003 220);
+  --color-border: oklch(0.912 0.004 220);
+  --color-border-strong: oklch(0.86 0.005 220);
+
+  --color-ink: oklch(0.24 0.012 255);
+  --color-ink-2: oklch(0.48 0.011 255);
+  --color-ink-3: oklch(0.6 0.008 255);
+
+  --color-accent: oklch(0.52 0.1 200);
+  --color-accent-strong: oklch(0.46 0.11 200);
+  --color-accent-tint: oklch(0.96 0.022 200);
+
+  --color-list: oklch(0.45 0.12 255);
+  --color-list-tint: oklch(0.955 0.028 255);
+  --color-assertion: oklch(0.46 0.15 305);
+  --color-assertion-tint: oklch(0.955 0.035 305);
+  --color-confident: oklch(0.46 0.12 155);
+  --color-confident-tint: oklch(0.955 0.04 155);
+  --color-borderline: oklch(0.52 0.11 70);
+  --color-borderline-tint: oklch(0.955 0.06 80);
+  --color-company: oklch(0.55 0.08 270);
+  --color-school: oklch(0.55 0.09 180);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: var(--color-accent-tint);
+}
+
+/* 入场 stagger:数据原子逐个浮现;尊重 reduced-motion */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.5s var(--ease-out-quint) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+  }
+  .rise {
+    animation: none;
+  }
+}

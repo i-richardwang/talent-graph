@@ -1,0 +1,37 @@
+{
+  "name": "talent-graph-web",
+  "private": true,
+  "type": "module",
+  "description": "Read-only multi-view frontend for talent-graph (TanStack Start). Repo-only, never published to npm.",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../.env.local --env-file-if-exists=../.env --env-file-if-exists=.env ./node_modules/vite/bin/vite.js dev --port 3000",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=../.env.local --env-file-if-exists=../.env --env-file-if-exists=.env .output/server/index.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/geist-mono": "^5.2.8",
+    "@tanstack/react-router": "^1.95.0",
+    "@tanstack/react-start": "^1.95.0",
+    "@xyflow/react": "^12.11.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.20.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@tanstack/react-router-devtools": "^1.95.0",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}

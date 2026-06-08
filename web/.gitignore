@@ -1,0 +1,11 @@
+node_modules
+.output
+.nitro
+.tanstack
+dist
+.env
+.env.*
+!.env.example
+
+# TanStack Router 自动生成的路由树(首次 dev/build 产物)
+src/routeTree.gen.ts
