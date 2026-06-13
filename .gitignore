@@ -36,3 +36,6 @@ skills-lock.json
 
 # skill 在仓库根手动跑时产生的输出(eval 结果落 iteration-N/ 不在这)
 /outputs/
+
+# operational artifacts (prod data snapshots) — never commit to public repo
+backups/
