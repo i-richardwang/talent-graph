@@ -45,6 +45,7 @@ const MUTATING_ACTIONS = new Set<string>([
   "employee.tag-remove",
   "entity.add",
   "alias.add",
+  "alias.remove",
   "embedding.backfill",
 ]);
 
@@ -1282,6 +1283,63 @@ async function cmdAliasAdd(opts: Flags) {
   });
 }
 
+// 撤回一条 alias 挂载(物理 DELETE)。alias 表设计为"只增的观测记录",remove 是误归属
+// 的兜底撤回路径——与 tag unlink / employee tag-remove 同构:同事务先把被删行写 audit_log
+// 再 DELETE,可反查 / 恢复。可选 --entity 作护栏:仅当该 raw 当前确实挂在指定实体上才删,
+// 防止误删一条已被 --force 改判到别处的映射。
+async function cmdAliasRemove(opts: Flags) {
+  const entityType = normalizeName(required(opts, "type"));
+  const rawName = normalizeName(required(opts, "raw-name"));
+  const entityGuard = optional(opts, "entity");
+
+  const result = await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({
+        id: schema.entityAliases.id,
+        entityType: schema.entityAliases.entityType,
+        rawName: schema.entityAliases.rawName,
+        entityId: schema.entityAliases.entityId,
+        reasoning: schema.entityAliases.reasoning,
+        createdAt: schema.entityAliases.createdAt,
+        updatedAt: schema.entityAliases.updatedAt,
+      })
+      .from(schema.entityAliases)
+      .where(
+        and(
+          eq(schema.entityAliases.entityType, entityType),
+          eq(schema.entityAliases.rawName, rawName),
+        ),
+      );
+    if (!target) return { state: "not_mapped" as const };
+    if (entityGuard && target.entityId !== entityGuard) {
+      return { state: "entity_mismatch" as const, target };
+    }
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entity_aliases",
+      beforeData: target,
+      command: CLI_INVOCATION,
+    });
+    await tx
+      .delete(schema.entityAliases)
+      .where(eq(schema.entityAliases.id, target.id));
+    return { state: "removed" as const, target };
+  });
+
+  // 幂等:本就不存在该映射 → ok,不报错(与 tag unlink 的 not_linked 同构)。
+  if (result.state === "not_mapped") {
+    return emit("not_mapped", { entityType, rawName });
+  }
+  if (result.state === "entity_mismatch") {
+    return emitError("entity_mismatch", {
+      existing: serializeAlias(result.target),
+      entityGuard,
+      hint: "该 raw_name 当前挂在其他实体上(可能已被 --force 改判)。确认要删就去掉 --entity 护栏,或先核对当前归属。",
+    });
+  }
+  emit("removed", serializeAlias(result.target));
+}
+
 // ---------------------------------------------------------------------------
 // Commands — Employee profile lookup
 // ---------------------------------------------------------------------------
@@ -1781,6 +1839,13 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     an existing mapping requires --force, which
                                     records the prior value in audit log.
 
+  alias remove --type --raw-name [--entity <uuid>]
+                                    Remove a raw-name → entity mapping (records
+                                    the deleted row in audit log first).
+                                    Idempotent: a missing mapping returns ok.
+                                    Optional --entity guards the delete to a
+                                    specific current target.
+
   embedding backfill                Compute embeddings for any rows missing them
                                     (requires EMBEDDING_* env).
 `;
@@ -1860,6 +1925,8 @@ async function dispatch(
       return cmdAliasList(opts);
     case "alias.add":
       return cmdAliasAdd(opts);
+    case "alias.remove":
+      return cmdAliasRemove(opts);
 
     case "audit.list":
       return cmdAuditList(opts);
