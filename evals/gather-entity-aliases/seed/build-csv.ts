@@ -156,6 +156,18 @@ const cases: Case[] = [
     distractors: [],
     noiseExclude: [/浙江/, /Zhejiang/i, /浙大/, /ZJU/i],
   },
+  {
+    slug: "case-10-imperial-near-form",
+    description:
+      "target=Imperial College London; DB 已挂带地理前缀的近似写法「伦敦帝国理工学院/大学/伦敦帝国理工」-> CSV 里字面不同的裸写法「帝国理工学院/大学/帝国理工」库中尚无,Agent 须各自 alias add,不得因近似写法已存在而误判跳过(复刻正式库 batch 1f719d 静默漏登)",
+    hits: [
+      "帝国理工",
+      "帝国理工大学",
+      "帝国理工学院",
+    ],
+    distractors: [],
+    noiseExclude: [/帝国理工/, /帝國理工/, /Imperial/i],
+  },
 ];
 
 function makeRng(seed: number): () => number {

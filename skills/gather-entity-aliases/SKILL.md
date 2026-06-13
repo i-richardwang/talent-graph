@@ -54,7 +54,8 @@ disable-model-invocation: true
 ## 信息源
 
 - `entity search "<target_entity>" --type <entity_type>` 拿 target 的 entityId;找不到精确匹配 → `entity add --canonical-name "<target_entity>" --type <entity_type>` 先注册再继续
-- `entity get <entityId>` 返回的 `description`(实体身份 + 并购/改名等历史)、`aliases[]`(已登记的写法)、`children[]`(已注册的子 entity)都可以作为判断依据
+- `entity get <entityId>` 返回的 `description`(实体身份 + 并购/改名等历史)、`children[]`(已注册的子 entity)是判断素材——认出 target 身份、把指向子 entity 的 raw 区分开
+- `aliases[]`(已登记的写法)记录的是 target 此前登过哪些写法,不是"某个候选还要不要登"的判据:下游靠 raw 字面精确匹配命中,已登的近似写法(如 `伦敦帝国理工学院`)不会替字面不同的候选(如 `帝国理工学院`)命中,每种写法都得各自占一行。归属 target 的候选一律登,与它在不在 `aliases[]` 里无关;同一写法重复登由工具幂等吸收
 
 ---
 
@@ -73,6 +74,12 @@ talent-graph alias add --type <entity_type> \
 - existing 的 `parentId` 指向 target → 不覆盖,跳过(raw 已挂在 target 的子 entity 上)
 - existing 与 target 无层级关系,本次有可靠依据支持归属 target → `--force` 覆盖
 - 吃不准 → 跳过
+
+---
+
+## 纠错(撤回误挂)
+
+登记过程中顺带、或专门复查 target 已登记的写法时,发现某条 raw 明显违反本任务的归属标准(挂了 target 名但实际不是 target),用 `alias remove --type <entity_type> --raw-name "<原始名>"` 撤掉。撤除是破坏性的,默认与登记相反——搜索核实确属误挂才删,吃不准就留着不动。
 
 ---
 

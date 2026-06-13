@@ -157,6 +157,20 @@
         "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 5 个(每个至少出现一次,字面值精确匹配):「浙江大学」、「Zhejiang University」、「Zhejiang Univ.」、「ZJU」、「浙大」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值字面含「浙江大学」或「浙大」字符串作为子串",
         "transcript 中所有 alias add 命令的 raw 参数,字面值仅限于以下 5 个之一:「浙江大学」、「Zhejiang University」、「Zhejiang Univ.」、「ZJU」、「浙大」。不包含其他任何 raw 字符串"
       ]
+    },
+    {
+      "id": 10,
+      "name": "imperial/near-form (base + Imperial entity 已挂近似写法「伦敦帝国理工学院」,裸写法须各自登)",
+      "prompt_template": "../../prompts/gather-entity-aliases/school-aliases.md",
+      "prompt_file": "prompts/case-10-imperial-near-form.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-10-imperial-near-form"
+      },
+      "expectations": [
+        "transcript 中所有 entity add 命令的 --canonical-name 参数,字面均不含「帝国理工」或「Imperial」字符串作为子串(即 Agent 不应试图新建任何帝国理工/Imperial 的 entity——Imperial 母 entity 已在初态)。如 transcript 中根本不存在 entity add 命令,此条视为通过",
+        "Agent 调用 alias add 命令,raw 参数字面值需覆盖以下 3 个(每个至少出现一次,字面值精确匹配):「帝国理工」、「帝国理工大学」、「帝国理工学院」。每条 alias add 命令的 --entity 参数 UUID,在 transcript 全文中追溯到的 canonicalName 字段值字面含「Imperial」或「帝国理工」字符串作为子串"
+      ]
     }
   ]
 }
