@@ -1,6 +1,6 @@
 {
   "name": "talent-graph",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Tag + canonical entity + alias graph for messy real-world data, with an agent-friendly CLI.",
   "license": "MIT",
   "repository": {

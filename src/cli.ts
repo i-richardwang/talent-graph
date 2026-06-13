@@ -44,6 +44,7 @@ const MUTATING_ACTIONS = new Set<string>([
   "employee.tag-add",
   "employee.tag-remove",
   "entity.add",
+  "entity.remove",
   "alias.add",
   "alias.remove",
   "embedding.backfill",
@@ -872,6 +873,84 @@ async function cmdEntityAdd(opts: Flags) {
   await writeEntityEmbedding(row.id, canonicalName);
 
   emit("created", serializeEntity(row));
+}
+
+async function cmdEntityRemove(opts: Flags) {
+  const entityId = normalizeName(required(opts, "entity"));
+  const allowOrphan = flag(opts, "allow-orphan-children");
+  if (!UUID_RE.test(entityId)) {
+    return emitError("usage_error", {
+      hint: "entity remove 只接实体 UUID:--entity <uuid>(不接 canonical-name,删除是破坏性操作,要精确锁定)",
+    });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, entityId));
+    if (!target) return { state: "absent" as const };
+
+    // 删 entity 会级联:entity_aliases / tag_entity_map 上挂此实体的行 ON DELETE
+    // CASCADE 一并删除;子实体 parent_id ON DELETE SET NULL 被孤儿化。审计要把这些
+    // 连带影响在删除前整组快照进 audit_log,才能整体恢复。
+    const aliases = await tx
+      .select({
+        id: schema.entityAliases.id,
+        entityType: schema.entityAliases.entityType,
+        rawName: schema.entityAliases.rawName,
+        reasoning: schema.entityAliases.reasoning,
+      })
+      .from(schema.entityAliases)
+      .where(eq(schema.entityAliases.entityId, target.id));
+    const tagLinks = await tx
+      .select({
+        tagId: schema.tagEntityMap.tagId,
+        matchMode: schema.tagEntityMap.matchMode,
+        reasoning: schema.tagEntityMap.reasoning,
+      })
+      .from(schema.tagEntityMap)
+      .where(eq(schema.tagEntityMap.entityId, target.id));
+    const children = await tx
+      .select({
+        entityId: schema.entities.id,
+        canonicalName: schema.entities.canonicalName,
+      })
+      .from(schema.entities)
+      .where(eq(schema.entities.parentId, target.id));
+
+    if (children.length > 0 && !allowOrphan) {
+      return { state: "has_children" as const, target, children };
+    }
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entities",
+      beforeData: { entity: target, aliases, tagLinks, children },
+      command: CLI_INVOCATION,
+    });
+    await tx.delete(schema.entities).where(eq(schema.entities.id, target.id));
+    return { state: "removed" as const, target, aliases, tagLinks, children };
+  });
+
+  // 幂等:实体本就不在 → ok,不报错(与 alias remove 的 not_mapped 同构)。
+  if (result.state === "absent") {
+    return emit("already_absent", { entityId });
+  }
+  if (result.state === "has_children") {
+    return emitError("has_children", {
+      entity: serializeEntity(result.target),
+      children: result.children,
+      hint: "删此实体会把这些子实体的 parent 置空(孤儿化)。先处理子实体(改挂或删除),或确认要孤儿化就加 --allow-orphan-children。",
+    });
+  }
+  emit("removed", {
+    ...serializeEntity(result.target),
+    cascaded: {
+      aliases: result.aliases.length,
+      tagLinks: result.tagLinks.length,
+      orphanedChildren: result.children.length,
+    },
+  });
 }
 
 const ASSERTION_KINDS = ["skill", "experience"] as const;
@@ -1834,6 +1913,15 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     在父子上建,用 tag link --match-mode subtree
                                     驱动传递性命中。
 
+  entity remove --entity <uuid> [--allow-orphan-children]
+                                    Delete an entity (records the row + its
+                                    cascaded aliases / tag links / children in
+                                    audit log first). Cascades: its aliases and
+                                    tag links are removed, children are orphaned
+                                    (parent_id → null). Refuses if it has
+                                    children unless --allow-orphan-children.
+                                    Idempotent: a missing entity returns ok.
+
   alias add --type --raw-name --entity <uuid> [--reasoning] [--force]
                                     Map a raw name to an entity. Conflict with
                                     an existing mapping requires --force, which
@@ -1907,6 +1995,8 @@ async function dispatch(
       );
     case "entity.add":
       return cmdEntityAdd(opts);
+    case "entity.remove":
+      return cmdEntityRemove(opts);
 
     case "employee.get":
       return cmdEmployeeGet(
