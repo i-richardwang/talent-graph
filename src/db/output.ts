@@ -139,6 +139,9 @@ export interface TagOut {
   // 统一分类轴(恒非空):list 模式下是挂的实体类型(对齐 entities.entity_type,
   // 'school' / 'company' / ...);assertion 模式下是判定子类型('skill' / 'experience')。
   kind: string;
+  // 语义角色子轴(见 schema/tags.ts):'school_tier' / 'notable_employer' /
+  // 'industry'。assertion 标签为 null。
+  facet: string | null;
   description: string;
   createdAt: Date;
   updatedAt: Date;
@@ -151,6 +154,7 @@ export function serializeTag(row: TagRow): TagOut {
     tagName: row.tagName,
     mode: row.mode as "list" | "assertion",
     kind: row.kind,
+    facet: row.facet,
     description: row.description,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -21,6 +21,7 @@ export interface TagListItem {
   tagName: string;
   mode: string;
   kind: string;
+  facet: string | null; // 角色子轴:school_tier / notable_employer / industry;assertion 恒 null
   description: string;
   memberCount: number;
   borderlineCount: number; // assertion 才有意义,list 恒 0
@@ -29,10 +30,12 @@ export interface TagListItem {
 export async function listTags(filter?: {
   mode?: string;
   kind?: string;
+  facet?: string;
 }): Promise<TagListItem[]> {
   const conditions = [];
   if (filter?.mode) conditions.push(eq(tags.mode, filter.mode));
   if (filter?.kind) conditions.push(eq(tags.kind, filter.kind));
+  if (filter?.facet) conditions.push(eq(tags.facet, filter.facet));
 
   const rows = await db
     .select()
@@ -69,6 +72,7 @@ export async function listTags(filter?: {
     tagName: r.tagName,
     mode: r.mode,
     kind: r.kind,
+    facet: r.facet,
     description: r.description,
     memberCount: memberMap.get(r.id) ?? 0,
     borderlineCount: borderlineMap.get(r.id) ?? 0,
@@ -104,6 +108,7 @@ export async function getTag(codeOrId: string): Promise<TagListItem | null> {
       tagName: tag.tagName,
       mode: tag.mode,
       kind: tag.kind,
+      facet: tag.facet,
       description: tag.description,
       memberCount: counts.find((c) => c.confidence === "confident")?.count ?? 0,
       borderlineCount:
@@ -121,6 +126,7 @@ export async function getTag(codeOrId: string): Promise<TagListItem | null> {
     tagName: tag.tagName,
     mode: tag.mode,
     kind: tag.kind,
+    facet: tag.facet,
     description: tag.description,
     memberCount: value,
     borderlineCount: 0,

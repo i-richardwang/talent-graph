@@ -34,6 +34,20 @@ talent-graph 的 tag 分两种,**业务语义和写入路径完全不同**,由 `
 
 **模式不可变**:`tag add` 时一次性决定(`--mode list --kind <实体类型>` 或 `--mode assertion --kind <skill|experience>`)。同 `tag_code` 重复 `tag add` 时 `(mode, kind)` 不一致直接 `tag_mode_conflict`,要改只能新建 tag。
 
+### facet:list 标签的角色子轴
+
+`tags.facet` 是 list 标签的**语义角色**子轴(`--facet`,可空),正交于 `(mode, kind)`。因为 list 模式下 `kind` 被钉死 = entity_type(都是 `company`),扛不了"同为 company 标签、但角色不同"的区分,facet 补这个位:
+
+| facet | kind | 含义 | 谁维护 |
+|---|---|---|---|
+| `school_tier` | school | 学校层级名单(清北 / 985 / QS) | `/define-tag`(闭集研究) |
+| `notable_employer` | company | 知名雇主聚类(MBB / 四大 / BAT) | `/define-tag`(闭集研究) |
+| `industry` | company | 雇主行业归类(银行 / 律所 / 物流) | **逐实体分类产线,不是 `/define-tag`** |
+
+facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参与员工命中 JOIN**,只供查询/前端/分类产线按族筛选(`tag list --facet industry`)。assertion 标签恒 `NULL`。
+
+**硬约定:行业标签(facet=industry)严禁用 `/define-tag` 填充。** `/define-tag` 的 skip-not-guess 假设"业内公认闭集 + WebSearch 核出同一份清单";"所有银行 / 所有律所"永远不是这种闭集,跑 `/define-tag company 银行` 会被判清单不成立而非零退出。行业归类是"给定一个 company 实体、判它属哪个行业"的**逐实体分类**任务(与 `/attribute-raw-name` 同构),由专门的分类产线写 `tag_entity_map`,挂载默认 `match_mode='exact'`(每个实体独立判,菜鸟挂物流不蹭阿里的互联网)。
+
 ### 实体层级 + match_mode
 
 `entities.parent_id` 表达实体的从属关系(如阿里巴巴 → 菜鸟 / 天猫 / 蚂蚁)。`tag_entity_map.match_mode` 决定挂载是否覆盖后代:

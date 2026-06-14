@@ -606,9 +606,11 @@ async function cmdEntityGet(positionals: string[]) {
 async function cmdTagList(opts: Flags) {
   const mode = optional(opts, "mode");
   const kind = optional(opts, "kind");
+  const facet = optional(opts, "facet");
   const conditions = [];
   if (mode) conditions.push(eq(schema.tags.mode, mode));
   if (kind) conditions.push(eq(schema.tags.kind, kind));
+  if (facet) conditions.push(eq(schema.tags.facet, facet));
   const q = db.select().from(schema.tags).$dynamic();
   if (conditions.length > 0) q.where(and(...conditions));
   const rows = await q;
@@ -961,6 +963,10 @@ async function cmdTagAdd(opts: Flags) {
   const mode = required(opts, "mode");
   const kindRaw = optional(opts, "kind");
   const kind = kindRaw ? normalizeName(kindRaw) : null;
+  // 语义角色子轴(可空):school_tier / notable_employer / industry。仅 list 标签有意义,
+  // 不参与命中、不进身份判定(mode/kind 才是身份)。assertion 标签不传即 NULL。
+  const facetRaw = optional(opts, "facet");
+  const facet = facetRaw ? normalizeName(facetRaw) : null;
   const description = required(opts, "description");
 
   if (mode !== "list" && mode !== "assertion") {
@@ -1008,7 +1014,7 @@ async function cmdTagAdd(opts: Flags) {
 
   const [row] = await db
     .insert(schema.tags)
-    .values({ tagCode, tagName, mode, kind, description })
+    .values({ tagCode, tagName, mode, kind, facet, description })
     .returning();
   emit("created", serializeTag(row));
 }
@@ -1816,9 +1822,12 @@ const READONLY_HELP = `Read-only commands
                                     extension. Run before deployment or when
                                     investigating environment issues.
 
-  tag list [--mode M] [--kind K]    List tags. --mode filters by 'list' /
+  tag list [--mode M] [--kind K] [--facet F]
+                                    List tags. --mode filters by 'list' /
                                     'assertion'; --kind filters by taxonomy
-                                    (school / company / skill / experience).
+                                    (school / company / skill / experience);
+                                    --facet filters by role (school_tier /
+                                    notable_employer / industry).
   tag get <code|id>                 Show one tag's definition + member count.
                                     Assertion tags: memberCount counts confident
                                     members only; borderlineCount is separate.
@@ -1866,16 +1875,19 @@ const READONLY_HELP = `Read-only commands
 
 const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
 
-  tag add --code --name --description --mode <list|assertion> --kind K
+  tag add --code --name --description --mode <list|assertion> --kind K [--facet F]
                                     Create or reuse a tag. --kind is required for
                                     both modes. mode='list' (名单标签) → kind is an
                                     entity type (school / company / ...), members
                                     are entities attached via tag link.
                                     mode='assertion' (判定标签) → kind ∈
                                     {skill, experience}, members are employees
-                                    attached via employee tag-add. Idempotent on
-                                    code; mode/kind are immutable once set (use new
-                                    tag_code to change).
+                                    attached via employee tag-add. --facet is the
+                                    optional role sub-axis for list tags
+                                    (school_tier / notable_employer / industry);
+                                    mutable metadata, not part of identity.
+                                    Idempotent on code; mode/kind are immutable once
+                                    set (use new tag_code to change).
 
   tag link --tag <code|id> --entity <uuid>
            [--match-mode <exact|subtree>] [--reasoning]

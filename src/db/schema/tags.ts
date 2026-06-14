@@ -27,6 +27,14 @@ export const tags = pgTable(
     tagName: text("tag_name").notNull(),
     mode: text().notNull(),
     kind: text().notNull(),
+    // 语义角色子轴(可空),正交于 (mode, kind)。list 模式下 kind 被钉死 = entity_type,
+    // 扛不了"同为 company 标签、但一个是雇主聚类、一个是行业归类"这种区分,facet 补这个位:
+    //   'school_tier'      → 学校层级名单 (清北/985/QS)        [kind=school]
+    //   'notable_employer' → 知名雇主聚类 (MBB/四大/BAT)        [kind=company]
+    //   'industry'         → 雇主行业归类 (银行/律所/物流)       [kind=company]
+    // 仅供查询/前端/分类产线按族筛选,不参与员工命中 JOIN。assertion 标签恒 NULL。
+    // 开放取值、无 CHECK;新角色可随时加。
+    facet: text(),
     description: text().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
