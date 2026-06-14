@@ -1,0 +1,161 @@
+{
+  "_comment": "雇主行业(facet=industry)+ 商业模式(facet=business_model)受控词表的单一事实源。prod seeder(tools/seed/apply-industry-taxonomy.mjs)与 eval seed(evals/classify-entity-industry/seed/_industry-buckets.sh)均从此派生。所有桶 mode=list、kind=company。改桶=改这里。",
+  "buckets": [
+    {
+      "code": "ind_banking",
+      "name": "银行",
+      "facet": "industry",
+      "description": "银行业:商业银行(国有大行/股份制/城农商行)、政策性银行。不含保险/券商/基金。"
+    },
+    {
+      "code": "ind_securities",
+      "name": "证券/投行",
+      "facet": "industry",
+      "description": "证券业:券商(含投行/经纪/自营/资管业务条线)、纯投资银行;中外投行均归此。"
+    },
+    {
+      "code": "ind_insurance",
+      "name": "保险",
+      "facet": "industry",
+      "description": "保险业:寿险/财险/再保险/保险经纪。不含银行系、券商系资管。"
+    },
+    {
+      "code": "ind_asset_mgmt",
+      "name": "基金/资管",
+      "facet": "industry",
+      "description": "资产管理:公募、私募(含量化)、券商/银行资管、信托。不含一级市场股权投资(归创投/PE)。"
+    },
+    {
+      "code": "ind_pe_vc",
+      "name": "创投/PE",
+      "facet": "industry",
+      "description": "一级市场股权投资:VC、PE、FOF、产业投资。不含二级市场资管。"
+    },
+    {
+      "code": "ind_consulting",
+      "name": "咨询",
+      "facet": "industry",
+      "description": "咨询服务:战略/管理/运营/IT/人力咨询。不含会计所审计本体。"
+    },
+    {
+      "code": "ind_accounting",
+      "name": "会计/审计",
+      "facet": "industry",
+      "description": "会计师事务所:审计/税务/财务咨询(四大及内资所)。"
+    },
+    {
+      "code": "ind_law",
+      "name": "律所",
+      "facet": "industry",
+      "description": "律师事务所及法律服务机构。"
+    },
+    {
+      "code": "ind_ecommerce",
+      "name": "电商",
+      "facet": "industry",
+      "description": "实物商品线上零售/电商(自营或平台)。平台型在模式轴另挂平台。本地生活/到店到家归消费。"
+    },
+    {
+      "code": "ind_gaming",
+      "name": "游戏",
+      "facet": "industry",
+      "description": "游戏研发、发行、运营、电竞。游戏从互联网细分独立。"
+    },
+    {
+      "code": "ind_software",
+      "name": "软件/IT",
+      "facet": "industry",
+      "description": "通用软件、SaaS、云计算、开发工具、搜索、AI、IT 服务——卖数字产品本身的公司。垂直在线业务(电商/出行/在线教育等)归其对应行业。"
+    },
+    {
+      "code": "ind_social",
+      "name": "社交/社区",
+      "facet": "industry",
+      "description": "社交、即时通讯、UGC 社区/平台。"
+    },
+    {
+      "code": "ind_automotive",
+      "name": "车企",
+      "facet": "industry",
+      "description": "整车制造(传统/合资/新势力);零部件供应商归制造,汽车经销零售归消费。"
+    },
+    {
+      "code": "ind_manufacturing",
+      "name": "制造",
+      "facet": "industry",
+      "description": "制造业:工业装备、电子/消费电子制造、半导体、汽车零部件(整车归车企)。"
+    },
+    {
+      "code": "ind_healthcare",
+      "name": "医药/医疗",
+      "facet": "industry",
+      "description": "制药、生物科技、医疗器械、CRO/CDMO、医疗服务;含互联网医疗(平台型另挂平台)。"
+    },
+    {
+      "code": "ind_real_estate",
+      "name": "房地产",
+      "facet": "industry",
+      "description": "房地产业:房地产开发、物业管理、商业地产运营、房产经纪。建筑施工归建筑/工程。"
+    },
+    {
+      "code": "ind_energy",
+      "name": "能源/电力",
+      "facet": "industry",
+      "description": "能源业:油气、电力、煤炭、新能源运营(发电/电网/油田)。设备制造归制造。"
+    },
+    {
+      "code": "ind_telecom",
+      "name": "电信运营",
+      "facet": "industry",
+      "description": "电信运营:基础电信运营商及通信网络服务。通信设备硬件归制造,软件平台归软件IT。"
+    },
+    {
+      "code": "ind_construction",
+      "name": "建筑/工程",
+      "facet": "industry",
+      "description": "建筑工程:建筑施工、基建工程、工程设计/勘察、装饰装修。房地产开发归房地产。"
+    },
+    {
+      "code": "ind_consumer",
+      "name": "消费/零售",
+      "facet": "industry",
+      "description": "消费零售:快消(FMCG)、线下零售连锁、餐饮、本地生活、消费品牌、汽车经销。实物电商归电商。"
+    },
+    {
+      "code": "ind_media",
+      "name": "传媒/文娱",
+      "facet": "industry",
+      "description": "传媒文娱:传媒、广告营销、影视/内容/直播、文旅/体育。游戏归游戏。"
+    },
+    {
+      "code": "ind_transportation",
+      "name": "交通运输",
+      "facet": "industry",
+      "description": "交通运输/客运:航空、铁路客运、公路与城际客运、公交、城市轨交、出行(含出行平台,平台型另挂平台)。货运快递仓储归物流。"
+    },
+    {
+      "code": "ind_logistics",
+      "name": "物流",
+      "facet": "industry",
+      "description": "物流/供应链:快递、货运、仓储、配送(含货运平台,平台型另挂平台)。旅客运输归交通运输。"
+    },
+    {
+      "code": "ind_government",
+      "name": "政府/公共",
+      "facet": "industry",
+      "description": "党政机关、事业单位、公共部门(作为雇主)。"
+    },
+    {
+      "code": "ind_education",
+      "name": "教育/科研",
+      "facet": "industry",
+      "description": "高校、科研院所、培训机构(作为雇主,指任职非教育背景);含在线教育。"
+    },
+    {
+      "code": "mdl_platform",
+      "name": "平台",
+      "facet": "business_model",
+      "description": "平台型公司:撮合/连接供需两方、自己不下场生产或自营(电商平台、出行平台、本地生活平台、招聘/中介平台等)。自营/实体不挂。"
+    }
+  ]
+}
