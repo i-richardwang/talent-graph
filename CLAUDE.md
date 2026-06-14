@@ -42,11 +42,14 @@ talent-graph 的 tag 分两种,**业务语义和写入路径完全不同**,由 `
 |---|---|---|---|
 | `school_tier` | school | 学校层级名单(清北 / 985 / QS) | `/define-tag`(闭集研究) |
 | `notable_employer` | company | 知名雇主聚类(MBB / 四大 / BAT) | `/define-tag`(闭集研究) |
-| `industry` | company | 雇主行业归类(银行 / 律所 / 物流) | **逐实体分类产线,不是 `/define-tag`** |
+| `industry` | company | 雇主行业归类(银行 / 律所 / 电商 / 物流) | **逐实体分类产线,不是 `/define-tag`** |
+| `business_model` | company | 雇主商业模式(平台 vs 自营,单值标记 `平台`) | **同一逐实体分类产线** |
 
-facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参与员工命中 JOIN**,只供查询/前端/分类产线按族筛选(`tag list --facet industry`)。assertion 标签恒 `NULL`。
+`industry` 与 `business_model` 是**两条正交的轴**,由同一条逐实体分类产线(`/classify-entity-industry`)一次判完:行业轴判"在哪个领域"(可多桶,平台型继承所服务行业——滴滴→交通、拼多多→电商),模式轴判"是不是平台"(撮合供需两方不下场自营才挂 `平台`,自营/实体不挂,无"自营"标签)。
 
-**硬约定:行业标签(facet=industry)严禁用 `/define-tag` 填充。** `/define-tag` 的 skip-not-guess 假设"业内公认闭集 + WebSearch 核出同一份清单";"所有银行 / 所有律所"永远不是这种闭集,跑 `/define-tag company 银行` 会被判清单不成立而非零退出。行业归类是"给定一个 company 实体、判它属哪个行业"的**逐实体分类**任务(与 `/attribute-raw-name` 同构),由专门的分类产线写 `tag_entity_map`,挂载默认 `match_mode='exact'`(每个实体独立判,菜鸟挂物流不蹭阿里的互联网)。
+facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参与员工命中 JOIN**,只供查询/前端/分类产线按族筛选(`tag list --facet industry` / `--facet business_model`)。assertion 标签恒 `NULL`。
+
+**硬约定:`facet=industry` 与 `facet=business_model` 标签都严禁用 `/define-tag` 填充。** `/define-tag` 的 skip-not-guess 假设"业内公认闭集 + WebSearch 核出同一份清单";"所有银行 / 所有平台公司"永远不是这种闭集,跑 `/define-tag company 银行` 会被判清单不成立而非零退出。这两条轴都是"给定一个 company 实体、判它属哪些桶 / 是不是平台"的**逐实体分类**任务(与 `/attribute-raw-name` 同构),由 `/classify-entity-industry` 产线写 `tag_entity_map`,挂载默认 `match_mode='exact'`(每个实体独立判,菜鸟挂物流不蹭阿里)。
 
 ### 实体层级 + match_mode
 

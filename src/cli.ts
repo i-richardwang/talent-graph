@@ -1827,7 +1827,8 @@ const READONLY_HELP = `Read-only commands
                                     'assertion'; --kind filters by taxonomy
                                     (school / company / skill / experience);
                                     --facet filters by role (school_tier /
-                                    notable_employer / industry).
+                                    notable_employer / industry /
+                                    business_model).
   tag get <code|id>                 Show one tag's definition + member count.
                                     Assertion tags: memberCount counts confident
                                     members only; borderlineCount is separate.
@@ -1884,8 +1885,9 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     {skill, experience}, members are employees
                                     attached via employee tag-add. --facet is the
                                     optional role sub-axis for list tags
-                                    (school_tier / notable_employer / industry);
-                                    mutable metadata, not part of identity.
+                                    (school_tier / notable_employer / industry /
+                                    business_model); mutable metadata, not part
+                                    of identity.
                                     Idempotent on code; mode/kind are immutable once
                                     set (use new tag_code to change).
 

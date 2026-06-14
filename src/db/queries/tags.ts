@@ -21,7 +21,7 @@ export interface TagListItem {
   tagName: string;
   mode: string;
   kind: string;
-  facet: string | null; // 角色子轴:school_tier / notable_employer / industry;assertion 恒 null
+  facet: string | null; // 角色子轴:school_tier / notable_employer / industry / business_model;assertion 恒 null
   description: string;
   memberCount: number;
   borderlineCount: number; // assertion 才有意义,list 恒 0
