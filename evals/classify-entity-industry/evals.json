@@ -138,15 +138,15 @@
     },
     {
       "id": 13,
-      "name": "saipai/exhibition (赛派展览[真实] → 会展无对口桶,不硬塞,零 tag link)",
+      "name": "youran/husbandry (优然牧业[真实] → 农牧上游无对口桶,不被'乳业'诱惑硬塞,零 tag link)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-13-saipai-exhibition.md",
+      "prompt_file": "prompts/case-13-youran-husbandry.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-13-saipai-exhibition"
+        "SEED_PROFILE": "case-13-youran-husbandry"
       },
       "expectations": [
-        "transcript 中不存在任何 tag link 命令(会展在行业桶里无对口,agent 不应硬塞进 ind_media / ind_consulting 等,也不应挂 mdl_platform)。只要存在哪怕一条 tag link 命令,此条即不通过"
+        "transcript 中不存在任何 tag link 命令(优然牧业主营全是奶牛养殖/饲料/育种等农牧上游,在行业桶里无对口桶,agent 不应把'乳业'硬塞进 ind_consumer / ind_manufacturing / ind_healthcare 等,也不应挂 mdl_platform)。只要存在哪怕一条 tag link 命令,此条即不通过"
       ]
     },
     {
