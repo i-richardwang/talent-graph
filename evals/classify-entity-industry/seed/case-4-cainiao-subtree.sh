@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # case 4: 菜鸟(parent=阿里巴巴)—— 子母独立判 + exact。
-# 任务只判菜鸟:期望 ind_logistics --match-mode exact 挂在菜鸟,不蹭阿里、不给菜鸟挂互联网。
+# 任务只判菜鸟:期望 ind_logistics --match-mode exact 挂在菜鸟,不蹭阿里(阿里的桶不连带落到菜鸟)。
 set -euo pipefail
 export TALENT_GRAPH_MODE=full
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -55,72 +55,71 @@
     },
     {
       "id": 5,
-      "name": "cetc/research (电科十四所 → ind_education 科研归并,不当制造厂、不跳过)",
+      "name": "aerospace203/research (航天科工203所[真实] → 国防科研院所归 ind_education,不当 ind_manufacturing 制造厂)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-5-cetc-research.md",
+      "prompt_file": "prompts/case-5-aerospace203-research.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-5-cetc-research"
+        "SEED_PROFILE": "case-5-aerospace203-research"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_education,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「研究所」或「中国电子科技」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_education,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「203所」或「航天科工」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
         "transcript 中不存在 --tag 追溯到 tag_code=ind_manufacturing 的 tag link 命令"
       ]
     },
     {
       "id": 8,
-      "name": "holding/skip (纯财务持股空壳 → 判不出不挂,零 tag link)",
+      "name": "zunshang/thin-skip (樽尚[真实] → 描述仅「商贸公司」信息不足,判不出不挂,零 tag link)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-8-holding-skip.md",
+      "prompt_file": "prompts/case-8-zunshang-thin-skip.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-8-holding-skip"
+        "SEED_PROFILE": "case-8-zunshang-thin-skip"
       },
       "expectations": [
-        "transcript 中不存在任何 tag link 命令(agent 判该实体主营不可辨识,行业轴/模式轴都不挂)。只要存在哪怕一条 tag link 命令,此条即不通过"
+        "transcript 中不存在任何 tag link 命令(实体主营仅一句「商贸公司」、信息不足以辨识,agent 行业轴/模式轴都不挂)。只要存在哪怕一条 tag link 命令,此条即不通过"
       ]
     },
     {
       "id": 9,
-      "name": "jiunongyun/platform (久农云[真实] → 软件IT + 平台;不挂物流、不当农业跳过)",
+      "name": "dazhangfang/saas (大账房[真实] → 财税SaaS自营,落 ind_software;非撮合,不挂 mdl_platform)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-9-jiunongyun-platform.md",
+      "prompt_file": "prompts/case-9-dazhangfang-saas.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-9-jiunongyun-platform"
+        "SEED_PROFILE": "case-9-dazhangfang-saas"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_software,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「久农云」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=mdl_platform,--entity UUID 追溯到的 canonicalName 字面含「久农云」,且命令含 --match-mode exact",
-        "transcript 中不存在 --tag 追溯到 tag_code=ind_logistics 的 tag link 命令"
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_software,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「大账房」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中不存在 --tag 追溯到 tag_code=mdl_platform 的 tag link 命令(财税SaaS 自营卖软件,非撮合供需两方的平台)"
       ]
     },
     {
       "id": 10,
-      "name": "dongri/healthtech (冬日中医[真实] → 医疗 + 平台;在线问诊撮合不行医)",
+      "name": "jingyitong/healthtech (京医通[真实] → 医疗 + 平台;在线预约挂号撮合医患不行医)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-10-dongri-healthtech.md",
+      "prompt_file": "prompts/case-10-jingyitong-healthtech.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-10-dongri-healthtech"
+        "SEED_PROFILE": "case-10-jingyitong-healthtech"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_healthcare,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「冬日中医」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=mdl_platform,--entity UUID 追溯到的 canonicalName 字面含「冬日中医」,且命令含 --match-mode exact"
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_healthcare,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「京医通」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=mdl_platform,--entity UUID 追溯到的 canonicalName 字面含「京医通」,且命令含 --match-mode exact"
       ]
     },
     {
       "id": 11,
-      "name": "haifeng/edu-online (海风教育[真实] → 教育(自营);在线不算平台)",
+      "name": "xueersi/edu (学而思网校[真实] → 教育(自营直播教学);在线只是渠道,不挂 mdl_platform)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-11-haifeng-edu-online.md",
+      "prompt_file": "prompts/case-11-xueersi-edu.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-11-haifeng-edu-online"
+        "SEED_PROFILE": "case-11-xueersi-edu"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_education,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「海风教育」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
-        "transcript 中不存在 --tag 追溯到 tag_code=mdl_platform 且 --entity UUID 追溯到 canonicalName 含「海风教育」的 tag link 命令(自营教学,非平台)"
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_education,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「学而思网校」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中不存在 --tag 追溯到 tag_code=mdl_platform 且 --entity UUID 追溯到 canonicalName 含「学而思网校」的 tag link 命令(自营组织师资授课,非撮合平台)"
       ]
     },
     {
@@ -152,15 +151,15 @@
     },
     {
       "id": 14,
-      "name": "jieweidongli/mfg (捷威动力[真实] → 动力电池研发制造归 ind_manufacturing,零部件不当 ind_automotive)",
+      "name": "keyi/battery-mfg (科易动力[真实] → 动力电池系统研发制造归 ind_manufacturing,零部件不当 ind_automotive)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
-      "prompt_file": "prompts/case-14-jieweidongli-mfg.md",
+      "prompt_file": "prompts/case-14-keyi-battery-mfg.md",
       "env": {
         "TALENT_GRAPH_MODE": "full",
-        "SEED_PROFILE": "case-14-jieweidongli-mfg"
+        "SEED_PROFILE": "case-14-keyi-battery-mfg"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_manufacturing,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「捷威动力」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_manufacturing,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「科易动力」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
         "transcript 中不存在 --tag 追溯到 tag_code=ind_automotive 的 tag link 命令"
       ]
     },
@@ -190,6 +189,20 @@
       "expectations": [
         "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_gaming,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「米哈游」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
         "transcript 中不存在 --tag 追溯到 tag_code=mdl_platform 的 tag link 命令(米哈游自研自营,非撮合平台)"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "shecang/puffery (舍藏[真实] → 注水识破:在1688等平台上卖货的卖家,非平台方;不挂 mdl_platform)",
+      "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
+      "prompt_file": "prompts/case-17-shecang-puffery.md",
+      "env": {
+        "TALENT_GRAPH_MODE": "full",
+        "SEED_PROFILE": "case-17-shecang-puffery"
+      },
+      "expectations": [
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_ecommerce 或 tag_code=ind_consumer 其中之一,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「舍藏」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中不存在 --tag 追溯到 tag_code=mdl_platform 且 --entity UUID 追溯到 canonicalName 含「舍藏」的 tag link 命令(舍藏是在 1688 等批发平台上卖货的卖家,自己不是撮合供需两方的平台方)"
       ]
     }
   ]
