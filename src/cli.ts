@@ -4,7 +4,7 @@ import { config } from "dotenv";
 // 的 envelope JSON,导致 agent JSON.parse 失败。
 config({ path: ".env.local", quiet: true });
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, or, ilike, sql, and } from "drizzle-orm";
+import { eq, ne, or, ilike, sql, and } from "drizzle-orm";
 import * as schema from "./db/schema";
 import { normalizeName } from "./db/normalize";
 import {
@@ -45,6 +45,8 @@ const MUTATING_ACTIONS = new Set<string>([
   "employee.tag-remove",
   "entity.add",
   "entity.remove",
+  "entity.merge",
+  "entity.set-parent",
   "alias.add",
   "alias.remove",
   "embedding.backfill",
@@ -953,6 +955,382 @@ async function cmdEntityRemove(opts: Flags) {
       orphanedChildren: result.children.length,
     },
   });
+}
+
+// 把 loser 实体整体并入 survivor:同一家公司被存成两个标准实体(裂脑)的收口刀。
+// 一个事务内——loser 的别名/标签挂载改指 survivor(撞 survivor 已有的去重)、子实体改挂、
+// loser 标准名登记成 survivor 别名、整组快照进 audit_log、删 loser。与 entity remove 的复合
+// 快照 + alias add --force 的"先 audit 后覆盖"同构。survivor/loser 必须同 entity_type。
+// "选谁当 survivor / 是合并还是建母子"是人工判决(WebSearch),工具只提供机制——故配
+// --dry-run:输出完全相同的迁移/去重报告但不写库,提交前肉眼核对,防误并不可逆。
+async function cmdEntityMerge(opts: Flags) {
+  const fromId = required(opts, "from");
+  const intoId = required(opts, "into");
+  const dryRun = flag(opts, "dry-run");
+
+  if (!UUID_RE.test(fromId) || !UUID_RE.test(intoId)) {
+    return emitError("usage_error", {
+      hint: "entity merge 只接实体 UUID:--from <uuid> --into <uuid>(合并是破坏性操作,要精确锁定)",
+    });
+  }
+  if (fromId === intoId) {
+    return emitError("usage_error", {
+      hint: "--from 与 --into 相同:不能把实体并入自己。",
+    });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [loser] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, fromId));
+    if (!loser) return { state: "from_absent" as const };
+    const [survivor] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, intoId));
+    if (!survivor) return { state: "into_absent" as const };
+    if (loser.entityType !== survivor.entityType) {
+      return { state: "cross_domain" as const, loser, survivor };
+    }
+
+    // 防环:survivor 若是 loser 的"非直接"后代(L→…→S,深度≥2),把 loser 子实体批量
+    // 改挂 survivor 会让 S 的祖先反指 S 成环。直接子(S.parent=loser)是安全的——下方
+    // survivorReparent 会把 S 改挂到 loser 的父,不留环。
+    {
+      let anc: string | null = survivor.parentId;
+      let depth = 0;
+      while (anc !== null && depth++ < 10000) {
+        if (anc === loser.id) {
+          if (survivor.parentId !== loser.id) {
+            return { state: "would_cycle" as const, loser, survivor };
+          }
+          break;
+        }
+        const [up]: { parentId: string | null }[] = await tx
+          .select({ parentId: schema.entities.parentId })
+          .from(schema.entities)
+          .where(eq(schema.entities.id, anc));
+        anc = up?.parentId ?? null;
+      }
+    }
+
+    // loser 名下三类从属物 + survivor 已有的别名 raw 集 / tagId 集(去重判据)
+    const loserAliases = await tx
+      .select({
+        id: schema.entityAliases.id,
+        entityType: schema.entityAliases.entityType,
+        rawName: schema.entityAliases.rawName,
+        reasoning: schema.entityAliases.reasoning,
+      })
+      .from(schema.entityAliases)
+      .where(eq(schema.entityAliases.entityId, loser.id));
+    const loserTagLinks = await tx
+      .select({
+        tagId: schema.tagEntityMap.tagId,
+        matchMode: schema.tagEntityMap.matchMode,
+        reasoning: schema.tagEntityMap.reasoning,
+      })
+      .from(schema.tagEntityMap)
+      .where(eq(schema.tagEntityMap.entityId, loser.id));
+    const loserChildren = await tx
+      .select({
+        entityId: schema.entities.id,
+        canonicalName: schema.entities.canonicalName,
+      })
+      .from(schema.entities)
+      .where(eq(schema.entities.parentId, loser.id));
+    const survAliases = await tx
+      .select({ rawName: schema.entityAliases.rawName })
+      .from(schema.entityAliases)
+      .where(eq(schema.entityAliases.entityId, survivor.id));
+    const survAliasRaws = new Set(survAliases.map((a) => a.rawName));
+    const survTags = await tx
+      .select({ tagId: schema.tagEntityMap.tagId })
+      .from(schema.tagEntityMap)
+      .where(eq(schema.tagEntityMap.entityId, survivor.id));
+    const survTagIds = new Set(survTags.map((t) => t.tagId));
+
+    // 计划:撞 survivor 已有的(同 raw / 同 tag)去重——靠步骤9级联删,不改指。
+    const aliasesToMove = loserAliases.filter((a) => !survAliasRaws.has(a.rawName));
+    const aliasesDeduped = loserAliases.length - aliasesToMove.length;
+    const tagsToMove = loserTagLinks.filter((t) => !survTagIds.has(t.tagId));
+    const tagsDeduped = loserTagLinks.length - tagsToMove.length;
+    // loser 标准名是真实写法,登记成 survivor 别名。仅当全表无 (type, loser.canonical)
+    // 别名行时才插——否则要么 survivor/loser 自己已有(后者随改指带过来),要么被第三方
+    // 实体占着(此时插入会撞 uq_entity_aliases_type_raw,不能偷别人的写法)。
+    const [nameClash] = await tx
+      .select({ id: schema.entityAliases.id })
+      .from(schema.entityAliases)
+      .where(
+        and(
+          eq(schema.entityAliases.entityType, loser.entityType),
+          eq(schema.entityAliases.rawName, loser.canonicalName),
+        ),
+      );
+    const registerLoserName = !nameClash;
+    // survivor 若以 loser 为父,删 loser 前先把 survivor 改挂到 loser 的父,防悬空/自环。
+    // survivor 自身不算 loser 的"子实体"(改挂会自指),从计数与批量改挂里排除。
+    const survivorReparent = survivor.parentId === loser.id;
+    const childrenToReparent = loserChildren.filter(
+      (c) => c.entityId !== survivor.id,
+    );
+
+    const plan = {
+      aliasesMoved: aliasesToMove.length,
+      aliasesDeduped,
+      tagLinksMoved: tagsToMove.length,
+      tagLinksDeduped: tagsDeduped,
+      childrenReparented: childrenToReparent.length,
+      loserNameRegistered: registerLoserName,
+      survivorReparented: survivorReparent,
+    };
+
+    if (dryRun) return { state: "dry" as const, loser, survivor, plan };
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entities",
+      beforeData: {
+        operation: "merge",
+        survivorId: survivor.id,
+        loserId: loser.id,
+        survivorParentBefore: survivor.parentId,
+        loserEntity: loser,
+        loserAliases,
+        loserTagLinks,
+        loserChildren,
+      },
+      command: CLI_INVOCATION,
+    });
+
+    for (const a of aliasesToMove) {
+      await tx
+        .update(schema.entityAliases)
+        .set({ entityId: survivor.id, updatedAt: new Date() })
+        .where(eq(schema.entityAliases.id, a.id));
+    }
+    const newAliasIds: string[] = [];
+    if (registerLoserName) {
+      const [row] = await tx
+        .insert(schema.entityAliases)
+        .values({
+          entityType: survivor.entityType,
+          rawName: loser.canonicalName,
+          entityId: survivor.id,
+          reasoning: `merged from entity ${loser.id}`,
+        })
+        .returning({ id: schema.entityAliases.id });
+      newAliasIds.push(row.id);
+    }
+    for (const t of tagsToMove) {
+      await tx
+        .update(schema.tagEntityMap)
+        .set({ entityId: survivor.id })
+        .where(
+          and(
+            eq(schema.tagEntityMap.entityId, loser.id),
+            eq(schema.tagEntityMap.tagId, t.tagId),
+          ),
+        );
+    }
+    if (childrenToReparent.length > 0) {
+      await tx
+        .update(schema.entities)
+        .set({ parentId: survivor.id, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.entities.parentId, loser.id),
+            ne(schema.entities.id, survivor.id),
+          ),
+        );
+    }
+    if (survivorReparent) {
+      await tx
+        .update(schema.entities)
+        .set({ parentId: loser.parentId })
+        .where(eq(schema.entities.id, survivor.id));
+    }
+    await tx.delete(schema.entities).where(eq(schema.entities.id, loser.id));
+
+    const [survivorAfter] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, survivor.id));
+    return {
+      state: "merged" as const,
+      loser,
+      survivor: survivorAfter,
+      plan,
+      newAliasIds,
+    };
+  });
+
+  if (result.state === "from_absent") {
+    return emit("already_absent", { entityId: fromId });
+  }
+  if (result.state === "into_absent") {
+    return emitError("entity_not_found", {
+      entityId: intoId,
+      hint: "--into 目标实体不存在。",
+    });
+  }
+  if (result.state === "cross_domain") {
+    return emitError("cross_domain_rejected", {
+      fromEntityType: result.loser.entityType,
+      intoEntityType: result.survivor.entityType,
+      hint: "只能合并同 entity_type 的实体。",
+    });
+  }
+  if (result.state === "would_cycle") {
+    return emitError("merge_would_cycle", {
+      fromEntityId: result.loser.id,
+      intoEntityId: result.survivor.id,
+      hint: "--into 是 --from 的(非直接)后代,把 --from 并入会成环。改为把后代并入祖先(对调 --from / --into),或先 set-parent 拆开层级。",
+    });
+  }
+  if (result.state === "dry") {
+    return emit("dry_run", {
+      survivor: serializeEntity(result.survivor),
+      removing: {
+        entityId: result.loser.id,
+        canonicalName: result.loser.canonicalName,
+      },
+      plan: result.plan,
+    });
+  }
+
+  // 新登记的 loser 名别名补 embedding(事务外 best-effort,后端挂了走 backfill)
+  for (const id of result.newAliasIds) {
+    await writeAliasEmbedding(id, result.loser.canonicalName);
+  }
+  emit("merged", {
+    survivor: serializeEntity(result.survivor),
+    removed: {
+      entityId: result.loser.id,
+      canonicalName: result.loser.canonicalName,
+    },
+    migrated: {
+      aliases: result.plan.aliasesMoved,
+      tagLinks: result.plan.tagLinksMoved,
+      children: result.plan.childrenReparented,
+    },
+    deduped: {
+      aliases: result.plan.aliasesDeduped,
+      tagLinks: result.plan.tagLinksDeduped,
+    },
+  });
+}
+
+// 给已存在实体设/改/清 parent_id——B 类(真·从属两家,如东风标致挂神龙汽车)的收口刀。
+// entity add --parent 只在建时设父,本命令补"对已存在实体改挂"的缺口。同域校验 +
+// 防环校验(parent 不能是 child 的后代)。覆盖式更新会丢旧 parent,故同事务先快照(与
+// alias add --force 一致)。
+async function cmdEntitySetParent(opts: Flags) {
+  const childId = required(opts, "entity");
+  const clear = flag(opts, "clear");
+  const parentId = clear ? undefined : required(opts, "parent");
+
+  if (!UUID_RE.test(childId) || (parentId !== undefined && !UUID_RE.test(parentId))) {
+    return emitError("usage_error", {
+      hint: "entity set-parent 只接实体 UUID:--entity <uuid> --parent <uuid>(或 --clear 清空)",
+    });
+  }
+  if (parentId !== undefined && parentId === childId) {
+    return emitError("usage_error", { hint: "实体不能作自己的父。" });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [child] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, childId));
+    if (!child) return { state: "child_absent" as const };
+
+    if (parentId === undefined) {
+      if (child.parentId === null) return { state: "already_cleared" as const, child };
+      await tx.insert(schema.auditLog).values({
+        tableName: "entities",
+        beforeData: { operation: "set-parent", entity: child },
+        command: CLI_INVOCATION,
+      });
+      await tx
+        .update(schema.entities)
+        .set({ parentId: null, updatedAt: new Date() })
+        .where(eq(schema.entities.id, child.id));
+      return { state: "cleared" as const, child };
+    }
+
+    const [parent] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, parentId));
+    if (!parent) return { state: "parent_absent" as const };
+    if (parent.entityType !== child.entityType) {
+      return { state: "cross_domain" as const, child, parent };
+    }
+    if (child.parentId === parent.id) {
+      return { state: "already_set" as const, child, parent };
+    }
+
+    // 防环:沿 parent 链向上,撞到 child 即成环。安全计数防脏数据死循环。
+    let cursor: string | null = parent.parentId;
+    let guard = 0;
+    while (cursor !== null && guard++ < 10000) {
+      if (cursor === child.id) return { state: "cycle" as const, child, parent };
+      const [up]: { parentId: string | null }[] = await tx
+        .select({ parentId: schema.entities.parentId })
+        .from(schema.entities)
+        .where(eq(schema.entities.id, cursor));
+      cursor = up?.parentId ?? null;
+    }
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entities",
+      beforeData: { operation: "set-parent", entity: child },
+      command: CLI_INVOCATION,
+    });
+    await tx
+      .update(schema.entities)
+      .set({ parentId: parent.id, updatedAt: new Date() })
+      .where(eq(schema.entities.id, child.id));
+    return { state: "set" as const, child, parent };
+  });
+
+  switch (result.state) {
+    case "child_absent":
+      return emitError("entity_not_found", {
+        entityId: childId,
+        hint: "--entity 实体不存在。",
+      });
+    case "parent_absent":
+      return emitError("entity_not_found", {
+        entityId: parentId,
+        hint: "--parent 实体不存在。",
+      });
+    case "cross_domain":
+      return emitError("cross_domain_rejected", {
+        childEntityType: result.child.entityType,
+        parentEntityType: result.parent.entityType,
+        hint: "父子实体必须同 entity_type(同域分区是层级的硬约束)。",
+      });
+    case "cycle":
+      return emitError("cycle_rejected", {
+        entityId: result.child.id,
+        parentId: result.parent.id,
+        hint: "指定的 parent 是该实体的后代,设置会成环。",
+      });
+    case "already_set":
+      return emit("already_set", serializeEntity(result.child));
+    case "already_cleared":
+      return emit("already_cleared", serializeEntity(result.child));
+    case "cleared":
+      return emit("cleared", serializeEntity({ ...result.child, parentId: null }));
+    case "set":
+      return emit(
+        "set",
+        serializeEntity({ ...result.child, parentId: result.parent.id }),
+      );
+  }
 }
 
 const ASSERTION_KINDS = ["skill", "experience"] as const;
@@ -1936,6 +2314,24 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     children unless --allow-orphan-children.
                                     Idempotent: a missing entity returns ok.
 
+  entity merge --from <uuid> --into <uuid> [--dry-run]
+                                    Merge the --from entity into --into (same
+                                    entity_type). Re-points --from's aliases and
+                                    tag links to --into (dedupes against existing
+                                    ones), reparents its children, registers
+                                    --from's canonical name as an --into alias,
+                                    snapshots the whole --from to audit log, then
+                                    deletes --from. --dry-run reports the
+                                    migration/dedup plan without writing.
+                                    Idempotent: a missing --from returns ok.
+
+  entity set-parent --entity <uuid> (--parent <uuid> | --clear)
+                                    Set / change / clear an existing entity's
+                                    parent_id. Parent must share entity_type;
+                                    rejects cycles. Records the prior parent in
+                                    audit log. Idempotent: already_set /
+                                    already_cleared return ok.
+
   alias add --type --raw-name --entity <uuid> [--reasoning] [--force]
                                     Map a raw name to an entity. Conflict with
                                     an existing mapping requires --force, which
@@ -2011,6 +2407,10 @@ async function dispatch(
       return cmdEntityAdd(opts);
     case "entity.remove":
       return cmdEntityRemove(opts);
+    case "entity.merge":
+      return cmdEntityMerge(opts);
+    case "entity.set-parent":
+      return cmdEntitySetParent(opts);
 
     case "employee.get":
       return cmdEmployeeGet(

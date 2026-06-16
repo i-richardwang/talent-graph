@@ -251,7 +251,9 @@ orchestrator agent 会自动完成 input CSV 准备、prompt template 生成、b
 
 ### 实体层级不能跨 entity_type
 
-`entities.parent_id` 是自引用 FK(ON DELETE SET NULL)。**父子必须同 entity_type**(school 不能作为 company 的父),否则 `tag_entity_map.match_mode='subtree'` 的 JOIN 会跨域漂移。CLI 在 `entity add --parent` 时校验,业务侧维护层级时按域分别建。
+`entities.parent_id` 是自引用 FK(ON DELETE SET NULL)。**父子必须同 entity_type**(school 不能作为 company 的父),否则 `tag_entity_map.match_mode='subtree'` 的 JOIN 会跨域漂移。CLI 在 `entity add --parent`(建时)和 `entity set-parent`(对已存在实体改挂)时都校验同域;`set-parent` 另拦成环(parent 不能是 child 的后代)。业务侧维护层级时按域分别建。
+
+**裂脑收口走 `entity merge`,不要手工拼多步**:同一家公司被存成两个标准实体(下游会被分别命中、member 数稀释)时,用 `entity merge --from <loser> --into <survivor>` 一条原子命令收敛(改指+去重别名/标签挂载、子实体改挂、loser 名登记成 survivor 别名、复合快照进 audit_log、删 loser);先 `--dry-run` 核对再实跑。**判谁当 survivor / 是合并(同一家)还是建母子(真·从属两家,走 `set-parent`)是 agent 的语义判决**(吃不准走 WebSearch,与 school 域中英文裂脑同判据),工具只提供机制。两命令都只接 UUID。
 
 ### 字符归一化契约必须两端对称
 

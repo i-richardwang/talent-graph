@@ -8,8 +8,13 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  setDefaultTimeout,
 } from "bun:test";
 import { acquire, type Lease } from "../helpers/pool";
+
+// 主用例一次 spawn 十余条 CLI 子进程(各自冷启动 bun + 连 PG),5s 默认超时偏紧、
+// 偶发越界。放宽到 30s。
+setDefaultTimeout(30_000);
 import { truncateAll } from "../helpers/reset";
 import { runCli } from "../helpers/cli";
 import { makeTag, makeEntity, makeAlias, linkTag } from "../helpers/fixtures";
