@@ -48,6 +48,7 @@ const MUTATING_ACTIONS = new Set<string>([
   "entity.merge",
   "entity.set-parent",
   "entity.rename",
+  "entity.set-description",
   "alias.add",
   "alias.remove",
   "embedding.backfill",
@@ -1414,6 +1415,62 @@ async function cmdEntityRename(opts: Flags) {
   }
 }
 
+// 给已存在实体改 description——身份说明/事实性历史随认知更新(并购/改名/前身),或纠正建实体时
+// Agent 把身份查错写错的 description。description 不进下游 JOIN、不影响 name_embedding(向量只锚
+// canonical),故无向量处理;覆盖前在同事务快照进 audit_log(与 rename 一致,误改可回滚)。
+async function cmdEntitySetDescription(opts: Flags) {
+  const entityId = required(opts, "entity");
+  const clear = flag(opts, "clear");
+  const rawDesc = optional(opts, "description");
+
+  if (!UUID_RE.test(entityId)) {
+    return emitError("usage_error", {
+      hint: 'entity set-description 只接实体 UUID:--entity <uuid> --description "<文本>"(或 --clear 清空)',
+    });
+  }
+  if (!clear && (rawDesc === undefined || rawDesc === null || rawDesc.trim() === "")) {
+    return emitError("usage_error", {
+      hint: "--description 缺失或去空白后为空。要清空用 --clear,否则给一段非空文本。",
+    });
+  }
+  const newDesc = clear ? null : rawDesc!.trim();
+
+  const result = await db.transaction(async (tx) => {
+    const [entity] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, entityId));
+    if (!entity) return { state: "absent" as const };
+    if ((entity.description ?? null) === newDesc) {
+      return { state: "unchanged" as const, entity };
+    }
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entities",
+      beforeData: { operation: "set-description", entity },
+      command: CLI_INVOCATION,
+    });
+    const [updated] = await tx
+      .update(schema.entities)
+      .set({ description: newDesc, updatedAt: new Date() })
+      .where(eq(schema.entities.id, entity.id))
+      .returning(ENTITY_COLUMNS);
+    return { state: "updated" as const, updated };
+  });
+
+  switch (result.state) {
+    case "absent":
+      return emitError("entity_not_found", {
+        entityId,
+        hint: "--entity 实体不存在。",
+      });
+    case "unchanged":
+      return emit("already_described", serializeEntity(result.entity));
+    case "updated":
+      return emit("described", serializeEntity(result.updated));
+  }
+}
+
 const ASSERTION_KINDS = ["skill", "experience"] as const;
 
 async function cmdTagAdd(opts: Flags) {
@@ -2424,6 +2481,15 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     name_taken (those are one entity: merge).
                                     Idempotent: same name returns already_named.
 
+  entity set-description --entity <uuid> (--description "<text>" | --clear)
+                                    Overwrite an entity's description (identity
+                                    note + factual history), e.g. to correct a
+                                    wrong agent-written description. Snapshots
+                                    the old row to audit log first. Does not
+                                    touch name_embedding (vector tracks
+                                    canonical only). Idempotent: same text
+                                    returns already_described.
+
   alias add --type --raw-name --entity <uuid> [--reasoning] [--force]
                                     Map a raw name to an entity. Conflict with
                                     an existing mapping requires --force, which
@@ -2505,6 +2571,8 @@ async function dispatch(
       return cmdEntitySetParent(opts);
     case "entity.rename":
       return cmdEntityRename(opts);
+    case "entity.set-description":
+      return cmdEntitySetDescription(opts);
 
     case "employee.get":
       return cmdEmployeeGet(

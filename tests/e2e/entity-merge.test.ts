@@ -606,3 +606,108 @@ describe("entity rename", () => {
     expect(bad.envelope.status).toBe("usage_error");
   });
 });
+
+describe("entity set-description", () => {
+  let lease: Lease;
+  beforeAll(async () => {
+    lease = await acquire();
+  });
+  afterAll(async () => {
+    await lease.release();
+  });
+  beforeEach(async () => {
+    await truncateAll(lease.dbUrl);
+  });
+
+  test("happy:覆盖 description,getEntity 反映新值,审计落 1 条", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "岭南集团",
+    });
+    const res = await runCli<{ description: string }>(
+      ["entity", "set-description", "--entity", e.entityId, "--description", "广州岭南国际企业集团"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("described");
+    expect(res.envelope.data.description).toBe("广州岭南国际企业集团");
+
+    const after = await getEntity(lease.dbUrl, e.entityId);
+    expect(after.envelope.data.description).toBe("广州岭南国际企业集团");
+
+    const audit = await runCli<{ tableName: string }[]>(
+      ["audit", "list", "--limit", "20"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(
+      audit.envelope.data.filter((a) => a.tableName === "entities").length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  test("幂等:设成同一文本 → already_described,不写审计", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "测试甲",
+    });
+    await runCli(
+      ["entity", "set-description", "--entity", e.entityId, "--description", "同一段说明"],
+      { dbUrl: lease.dbUrl },
+    );
+    const res = await runCli(
+      ["entity", "set-description", "--entity", e.entityId, "--description", "同一段说明"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("already_described");
+    const audit = await runCli<{ tableName: string }[]>(
+      ["audit", "list", "--limit", "20"],
+      { dbUrl: lease.dbUrl },
+    );
+    // 只第一次写改了,落 1 条;第二次幂等不写
+    expect(
+      audit.envelope.data.filter((a) => a.tableName === "entities").length,
+    ).toBe(1);
+  });
+
+  test("--clear 把 description 清空", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "测试乙",
+    });
+    await runCli(
+      ["entity", "set-description", "--entity", e.entityId, "--description", "先有值"],
+      { dbUrl: lease.dbUrl },
+    );
+    const res = await runCli<{ description: string | null }>(
+      ["entity", "set-description", "--entity", e.entityId, "--clear"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("described");
+    expect(res.envelope.data.description).toBeNull();
+  });
+
+  test("护栏:缺 --description 且非 --clear → usage_error;实体不存在 → entity_not_found", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "测试丙",
+    });
+    const noVal = await runCli(
+      ["entity", "set-description", "--entity", e.entityId],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(noVal.envelope.ok).toBe(false);
+    expect(noVal.envelope.status).toBe("usage_error");
+
+    const ghost = "00000000-0000-4000-8000-000000000000";
+    const miss = await runCli(
+      ["entity", "set-description", "--entity", ghost, "--description", "x"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(miss.envelope.status).toBe("entity_not_found");
+  });
+});

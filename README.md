@@ -174,7 +174,7 @@ talent-graph <noun> <verb> [options]
 | Noun | Readonly verbs | Full-mode verbs |
 |------|---------------|----------------|
 | `tag` | `tag list [--mode M] [--kind K]` / `tag get <code\|id>` / `tag members <code\|id>` | `tag add --mode <list\|assertion> --kind <K>` / `tag link [--match-mode]` / `tag unlink`(名单标签) |
-| `entity` | `entity list [--type T]` / `entity get <uuid>` / `entity get <type> <name>` / `entity search <q> --type T` | `entity add [--parent <uuid>]` / `entity remove` / `entity merge --from <uuid> --into <uuid> [--dry-run]` / `entity set-parent --entity <uuid> (--parent <uuid> \| --clear)` / `entity rename --entity <uuid> --canonical-name "<new>"` |
+| `entity` | `entity list [--type T]` / `entity get <uuid>` / `entity get <type> <name>` / `entity search <q> --type T` | `entity add [--parent <uuid>]` / `entity remove` / `entity merge --from <uuid> --into <uuid> [--dry-run]` / `entity set-parent --entity <uuid> (--parent <uuid> \| --clear)` / `entity rename --entity <uuid> --canonical-name "<new>"` / `entity set-description --entity <uuid> (--description "<text>" \| --clear)` |
 | `employee` | `employee get <emp_id>` / `employee search <q>` | `employee tag-add` / `employee tag-remove`(判定标签) |
 | `alias` | `alias list [filters...]` | `alias add` |
 | `audit` | `audit list [filters...]` | — |
@@ -183,7 +183,7 @@ talent-graph <noun> <verb> [options]
 
 `tag members` 是输出形态自适应的:判定标签直接返回 `[{empId, name, confidence, reasoning}]`(不需要再逐条 `employee get` 查姓名;默认只含 confident 成员,`--confidence borderline|all` 取边界模糊的),名单标签返回标准实体清单 `[{entityId, canonicalName, description, matchMode, reasoning}]`。`entity get` 同时支持 UUID 和 `(type, canonical_name)` 二元组两种形式,返回值含 `parentId` 与直接子实体 `children`(一层)。
 
-同一家公司被存成两个标准实体(裂脑)时用 `entity merge --from <loser> --into <survivor>` 收口:同事务把 loser 的别名 / 标签挂载改指 survivor(撞 survivor 已有的去重)、子实体改挂、loser 标准名登记成 survivor 别名、整组快照进 `audit_log`,再删 loser;`--dry-run` 先看迁移/去重计划不写库。给已存在实体设/改/清父实体用 `entity set-parent --entity <uuid> (--parent <uuid> | --clear)`(同域校验 + 防环,覆盖前快照旧父)。改标准名(消歧 `华凌集团 → 华凌（新疆）`、或把股票/法人名洗成知名简称)用 `entity rename --entity <uuid> --canonical-name "<new>"`:覆盖前快照旧行进 `audit_log`、改后重算 `name_embedding`;不跑相似度探测(改名常是刻意区分近名实体),只硬拦同域精确重名(`name_taken`——那是同一主体,该 merge)。三者都只接 UUID(破坏性操作精确锁定)。
+同一家公司被存成两个标准实体(裂脑)时用 `entity merge --from <loser> --into <survivor>` 收口:同事务把 loser 的别名 / 标签挂载改指 survivor(撞 survivor 已有的去重)、子实体改挂、loser 标准名登记成 survivor 别名、整组快照进 `audit_log`,再删 loser;`--dry-run` 先看迁移/去重计划不写库。给已存在实体设/改/清父实体用 `entity set-parent --entity <uuid> (--parent <uuid> | --clear)`(同域校验 + 防环,覆盖前快照旧父)。改标准名(消歧 `华凌集团 → 华凌（新疆）`、或把股票/法人名洗成知名简称)用 `entity rename --entity <uuid> --canonical-name "<new>"`:覆盖前快照旧行进 `audit_log`、改后重算 `name_embedding`;不跑相似度探测(改名常是刻意区分近名实体),只硬拦同域精确重名(`name_taken`——那是同一主体,该 merge)。改 / 清 description(身份说明 + 事实性历史随认知更新,或纠正建实体时写错的身份)用 `entity set-description --entity <uuid> (--description "<text>" | --clear)`:覆盖前快照旧行进 `audit_log`,不动 `name_embedding`(向量只锚 canonical),幂等返 `already_described`。四者都只接 UUID(破坏性操作精确锁定)。
 
 `talent-graph diag` 是前置自检,返回 DB 连通性 / pgvector 扩展 / embedding 配置等信息。任何自动化任务都建议先跑一次。
 
