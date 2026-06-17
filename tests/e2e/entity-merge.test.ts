@@ -488,3 +488,121 @@ describe("entity set-parent", () => {
     expect(clearedAgain.envelope.status).toBe("already_cleared");
   });
 });
+
+describe("entity rename", () => {
+  let lease: Lease;
+  beforeAll(async () => {
+    lease = await acquire();
+  });
+  afterAll(async () => {
+    await lease.release();
+  });
+  beforeEach(async () => {
+    await truncateAll(lease.dbUrl);
+  });
+
+  test("happy:canonical 改名,getEntity 反映新名,审计落 1 条", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "华凌集团",
+    });
+    const res = await runCli<{ canonicalName: string }>(
+      ["entity", "rename", "--entity", e.entityId, "--canonical-name", "华凌(新疆)"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("renamed");
+    expect(res.envelope.data.canonicalName).toBe("华凌(新疆)");
+
+    const after = await getEntity(lease.dbUrl, e.entityId);
+    expect(after.envelope.data.canonicalName).toBe("华凌(新疆)");
+
+    const audit = await runCli<{ tableName: string }[]>(
+      ["audit", "list", "--limit", "20"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(
+      audit.envelope.data.filter((a) => a.tableName === "entities").length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  test("幂等:改成同名 → already_named,不写审计", async () => {
+    const e = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "万得",
+    });
+    const res = await runCli(
+      ["entity", "rename", "--entity", e.entityId, "--canonical-name", "万得"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("already_named");
+    const audit = await runCli<{ tableName: string }[]>(
+      ["audit", "list", "--limit", "20"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(
+      audit.envelope.data.filter((a) => a.tableName === "entities").length,
+    ).toBe(0);
+  });
+
+  test("护栏:同域已有该 canonical → name_taken,库不变", async () => {
+    const a = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "京东科技",
+    });
+    const b = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "京东金融",
+    });
+    const res = await runCli(
+      ["entity", "rename", "--entity", b.entityId, "--canonical-name", "京东科技"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(false);
+    expect(res.envelope.status).toBe("name_taken");
+    // b 没被改
+    const after = await getEntity(lease.dbUrl, b.entityId);
+    expect(after.envelope.data.canonicalName).toBe("京东金融");
+    void a;
+  });
+
+  test("跨 entity_type 同名不冲突:company 可改成 school 已用的名", async () => {
+    await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "school",
+      canonicalName: "清华",
+    });
+    const co = await makeEntity({
+      dbUrl: lease.dbUrl,
+      type: "company",
+      canonicalName: "清华系企业",
+    });
+    const res = await runCli<{ canonicalName: string }>(
+      ["entity", "rename", "--entity", co.entityId, "--canonical-name", "清华"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(res.envelope.ok).toBe(true);
+    expect(res.envelope.status).toBe("renamed");
+  });
+
+  test("护栏:实体不存在 → entity_not_found;非 UUID → usage_error", async () => {
+    const ghost = "00000000-0000-4000-8000-000000000000";
+    const miss = await runCli(
+      ["entity", "rename", "--entity", ghost, "--canonical-name", "随便"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(miss.envelope.status).toBe("entity_not_found");
+
+    const bad = await runCli(
+      ["entity", "rename", "--entity", "not-a-uuid", "--canonical-name", "随便"],
+      { dbUrl: lease.dbUrl },
+    );
+    expect(bad.envelope.ok).toBe(false);
+    expect(bad.envelope.status).toBe("usage_error");
+  });
+});

@@ -47,6 +47,7 @@ const MUTATING_ACTIONS = new Set<string>([
   "entity.remove",
   "entity.merge",
   "entity.set-parent",
+  "entity.rename",
   "alias.add",
   "alias.remove",
   "embedding.backfill",
@@ -1333,6 +1334,86 @@ async function cmdEntitySetParent(opts: Flags) {
   }
 }
 
+// 改一个已存在实体的 canonical_name——典型场景:消歧(同名异司里给冷门那个加地域限定,
+// 如 华凌集团 → 华凌(新疆))、把股票/法人名洗成知名简称。改名是覆盖式更新,同事务先把旧行
+// 快照进 audit_log(与 set-parent / alias add --force 一致);改后重算 name_embedding
+// (canonical 变了,向量必须跟着变,否则相似度检索还在用旧名的向量)。
+// 不跑相似度探测:改名往往就是刻意让它与近名实体区分(华凌(新疆) 跟 华凌 必然高相似),
+// 探测只会误拦。只硬拦同域精确重名(撞 canonical 唯一语义)——那种是同一主体,该 merge。
+async function cmdEntityRename(opts: Flags) {
+  const entityId = required(opts, "entity");
+  const newName = normalizeName(required(opts, "canonical-name"));
+
+  if (!UUID_RE.test(entityId)) {
+    return emitError("usage_error", {
+      hint: 'entity rename 只接实体 UUID:--entity <uuid> --canonical-name "<新名>"',
+    });
+  }
+  if (!newName) {
+    return emitError("usage_error", {
+      hint: "--canonical-name 归一化后为空,改名需要一个非空名。",
+    });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [entity] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(eq(schema.entities.id, entityId));
+    if (!entity) return { state: "absent" as const };
+    if (entity.canonicalName === newName) {
+      return { state: "unchanged" as const, entity };
+    }
+
+    // 同 entity_type 下 canonical 应唯一:精确重名说明两者是同一主体,该 merge 不该 rename。
+    const [clash] = await tx
+      .select(ENTITY_COLUMNS)
+      .from(schema.entities)
+      .where(
+        and(
+          eq(schema.entities.entityType, entity.entityType),
+          eq(schema.entities.canonicalName, newName),
+        ),
+      );
+    if (clash) return { state: "name_taken" as const, clash };
+
+    await tx.insert(schema.auditLog).values({
+      tableName: "entities",
+      beforeData: { operation: "rename", entity },
+      command: CLI_INVOCATION,
+    });
+    // 名字变了,旧名的向量当场失效。先在同一 UPDATE 里清成 NULL——下面事务外重算成功就刷新,
+    // 失败(后端挂)就留 NULL 让 `embedding backfill` 兜底。绝不留旧名向量(backfill 只扫 NULL,
+    // 扫不到陈旧向量,会导致相似度检索长期拿旧名误命中)。
+    const [updated] = await tx
+      .update(schema.entities)
+      .set({ canonicalName: newName, nameEmbedding: null, updatedAt: new Date() })
+      .where(eq(schema.entities.id, entity.id))
+      .returning(ENTITY_COLUMNS);
+    return { state: "renamed" as const, updated };
+  });
+
+  switch (result.state) {
+    case "absent":
+      return emitError("entity_not_found", {
+        entityId,
+        hint: "--entity 实体不存在。",
+      });
+    case "unchanged":
+      return emit("already_named", serializeEntity(result.entity));
+    case "name_taken":
+      return emitError("name_taken", {
+        entityId: result.clash.id,
+        canonicalName: newName,
+        hint: "同 entity_type 下已有实体用这个 canonical 名。两者若是同一主体,用 entity merge 收口;若确为不同主体,换一个能区分的名(加地域/行业限定)。",
+      });
+    case "renamed":
+      // canonical 变了,重算 name_embedding(事务外 best-effort,后端挂了留 NULL 走 backfill)。
+      await writeEntityEmbedding(result.updated.id, result.updated.canonicalName);
+      return emit("renamed", serializeEntity(result.updated));
+  }
+}
+
 const ASSERTION_KINDS = ["skill", "experience"] as const;
 
 async function cmdTagAdd(opts: Flags) {
@@ -2332,6 +2413,17 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     audit log. Idempotent: already_set /
                                     already_cleared return ok.
 
+  entity rename --entity <uuid> --canonical-name "<new>"
+                                    Change an entity's canonical name (e.g.
+                                    disambiguation 华凌集团 → 华凌(新疆), or wash
+                                    a stock/legal name into a known short name).
+                                    Snapshots the old row to audit log, then
+                                    recomputes name_embedding. No similarity
+                                    probe (renames deliberately split near-named
+                                    entities). Exact same-type name collision →
+                                    name_taken (those are one entity: merge).
+                                    Idempotent: same name returns already_named.
+
   alias add --type --raw-name --entity <uuid> [--reasoning] [--force]
                                     Map a raw name to an entity. Conflict with
                                     an existing mapping requires --force, which
@@ -2411,6 +2503,8 @@ async function dispatch(
       return cmdEntityMerge(opts);
     case "entity.set-parent":
       return cmdEntitySetParent(opts);
+    case "entity.rename":
+      return cmdEntityRename(opts);
 
     case "employee.get":
       return cmdEmployeeGet(
