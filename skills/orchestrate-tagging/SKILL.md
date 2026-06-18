@@ -19,15 +19,15 @@ disable-model-invocation: true
 
 | 你面对的场景 | 任务名 | 读这个 playbook |
 |---|---|---|
-| 业务方刚定义了一批名单标签(清北 / MBB…),库里还没挂标准实体——要给每个标签注册字段、研究并挂上它的标准实体清单 | `define-tag-bootstrap` | `reference/define-tag.md` |
-| 名单标签的标准实体清单已挂好(典型是**学校**,target 清单明确),要把简历库里这些实体出现过的各种写法都收集登记成 alias —— **首次全量** | `list-tag-bootstrap` | `reference/list-tag.md` |
-| 同上,但只扫本周期新增的未登记写法 | `list-tag-weekly` | `reference/list-tag.md` |
-| 手上是一堆**原始公司名**(公司实体无穷多、列不出 target),要逐条反查每个 raw 归属哪个公司实体、登记 alias(判定为独立子集团就新建) —— **首次全量** | `attribute-raw-name-bootstrap` | `reference/attribute-raw-name.md` |
-| **公司实体已经建好**,要给每个实体判它属哪个行业 + 是不是平台、挂上行业/模式标签 —— **首次全量** | `classify-entity-industry-bootstrap` | `reference/classify-entity-industry.md` |
-| 要按**员工 profile** 综合判定打判定标签(技能 / 经验类) —— **首次全员** | `assertion-tag-bootstrap` | `reference/assertion-tag.md` |
-| 同上,但只重判本周期的 cohort(新员工 + 简历更新过的) | `assertion-tag-monthly` | `reference/assertion-tag.md` |
+| 业务方刚定义了一批名单标签(清北 / MBB…),库里还没挂标准实体——要给每个标签注册字段、研究并挂上它的标准实体清单 | `define-tag-bootstrap` | `skills/orchestrate-tagging/reference/define-tag.md` |
+| 名单标签的标准实体清单已挂好(典型是**学校**,target 清单明确),要把简历库里这些实体出现过的各种写法都收集登记成 alias —— **首次全量** | `list-tag-bootstrap` | `skills/orchestrate-tagging/reference/list-tag.md` |
+| 同上,但只扫本周期新增的未登记写法 | `list-tag-weekly` | `skills/orchestrate-tagging/reference/list-tag.md` |
+| 手上是一堆**原始公司名**(公司实体无穷多、列不出 target),要逐条反查每个 raw 归属哪个公司实体、登记 alias(判定为独立子集团就新建) —— **首次全量** | `attribute-raw-name-bootstrap` | `skills/orchestrate-tagging/reference/attribute-raw-name.md` |
+| **公司实体已经建好**,要给每个实体判它属哪个行业 + 是不是平台、挂上行业/模式标签 —— **首次全量** | `classify-entity-industry-bootstrap` | `skills/orchestrate-tagging/reference/classify-entity-industry.md` |
+| 要按**员工 profile** 综合判定打判定标签(技能 / 经验类) —— **首次全员** | `assertion-tag-bootstrap` | `skills/orchestrate-tagging/reference/assertion-tag.md` |
+| 同上,但只重判本周期的 cohort(新员工 + 简历更新过的) | `assertion-tag-monthly` | `skills/orchestrate-tagging/reference/assertion-tag.md` |
 
-定位到任务后,**读对应 `reference/<file>.md` 拿该任务的具体 playbook**(准备 input → prompt template → batch create → 报告)。本文只承载所有任务通用的平台契约和执行框架。
+定位到任务后,**读对应 playbook 拿该任务的具体步骤**(准备 input → prompt template → batch create → 报告)。本文只承载所有任务通用的平台契约和执行框架。playbook 路径与下文 prompt template 引用的 `prompts/<skill>/<scenario>.md` 同为 repo 根相对。读不到 playbook 或 prompt 就报错停下、不要凭记忆硬编命令——零写入比错写入好。
 
 > 任务名怎么记:`<标签类型/skill>`(`define-tag` / `list-tag` / `attribute-raw-name` / `classify-entity-industry` / `assertion-tag`)+ `<触发节奏>`(`bootstrap` 首次 / `weekly` / `monthly`)。一个原子 skill 对应一个 reference 文件;周期变体(weekly / monthly)和它的 bootstrap 同住一文件。
 
@@ -82,4 +82,4 @@ talent-graph 的 batch 直接写生产库,test 模式也是真写——没有安
 
 报告内容:**batch-id + 总行数 + 已启动 concurrency=1 + 建议验证后加并发到几**(`list-tag-*` → 5,`assertion-tag-*` / `attribute-raw-name-*` / `classify-entity-industry-*` → 3,LLM 限流是瓶颈,数据库不是)。
 
-各任务在这个骨架上的具体差异(input 怎么准备、选哪个 prompt 文件、报告补充什么)见各自的 `reference/<file>.md`。
+各任务在这个骨架上的具体差异(input 怎么准备、选哪个 prompt 文件、报告补充什么)见各自的 `skills/orchestrate-tagging/reference/<file>.md`。
