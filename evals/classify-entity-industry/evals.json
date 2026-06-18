@@ -25,7 +25,7 @@
   "cases": [
     {
       "id": 2,
-      "name": "pingan/multi (中国平安 → banking+insurance+asset_mgmt 多桶 recall,沾边不挂)",
+      "name": "pingan/main (中国平安 综合金融集团 → 主营保险单桶,不因涉银行/资管就多挂)",
       "prompt_template": "../../prompts/classify-entity-industry/employer-industry.md",
       "prompt_file": "prompts/case-2-pingan-multi.md",
       "env": {
@@ -33,10 +33,9 @@
         "SEED_PROFILE": "case-2-pingan-multi"
       },
       "expectations": [
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_banking,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「平安」字符串作为子串。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_insurance,--entity UUID 追溯到的 canonicalName 字面含「平安」",
-        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_asset_mgmt,--entity UUID 追溯到的 canonicalName 字面含「平安」",
-        "transcript 中不存在 --tag 追溯到 tag_code=ind_manufacturing 或 ind_automotive 的 tag link 命令"
+        "transcript 中存在 tag link 命令,--tag 追溯到 tag_code=ind_insurance,--entity UUID 在 transcript 全文中追溯到的 canonicalName 字面含「平安」字符串作为子串,且命令含 --match-mode exact。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 UUID 作为 id 或 entityId 字段值 + canonicalName/tag_code 字段值",
+        "transcript 中不存在 --tag 追溯到 tag_code=ind_banking 的 tag link 命令(集团主营判保险;银行是子板块,由子实体平安银行扛,不在集团实体上多挂)。'追溯' 指 transcript 全文中存在某 JSON 对象同时包含该 tag UUID 作为 id 字段值 + tag_code 字段值",
+        "transcript 中不存在 --tag 追溯到 tag_code=ind_asset_mgmt 的 tag link 命令(同理,资管板块不在集团实体上多挂)"
       ]
     },
     {

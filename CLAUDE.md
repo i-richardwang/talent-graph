@@ -45,7 +45,7 @@ talent-graph 的 tag 分两种,**业务语义和写入路径完全不同**,由 `
 | `industry` | company | 雇主行业归类(银行 / 律所 / 电商 / 物流) | **逐实体分类产线,不是 `/define-tag`** |
 | `business_model` | company | 雇主商业模式(平台 vs 自营,单值标记 `平台`) | **同一逐实体分类产线** |
 
-`industry` 与 `business_model` 是**两条正交的轴**,由同一条逐实体分类产线(`/classify-entity-industry`)一次判完:行业轴判"在哪个领域"(可多桶,平台型继承所服务行业——滴滴→交通、拼多多→电商),模式轴判"是不是平台"(撮合供需两方不下场自营才挂 `平台`,自营/实体不挂,无"自营"标签)。
+`industry` 与 `business_model` 是**两条正交的轴**,由同一条逐实体分类产线(`/classify-entity-industry`)一次判完:行业轴判**主营在哪个领域**(每个实体挑主营一个桶,平台型继承所服务行业——滴滴→交通、拼多多→电商;**不堆多桶**——下游按末级实体统计员工行业,集团主营桶只给挂不到子实体的兜底),模式轴判"是不是平台"(撮合供需两方不下场自营才挂 `平台`,自营/实体不挂,无"自营"标签)。
 
 facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参与员工命中 JOIN**,只供查询/前端/分类产线按族筛选(`tag list --facet industry` / `--facet business_model`)。assertion 标签恒 `NULL`。
 
@@ -61,6 +61,12 @@ facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参
 | `'exact'` | 仅此实体本身 | 物流 → 菜鸟(exact)→ 不会让阿里巴巴所有员工都进物流 |
 
 下游 JOIN 走 `match_mode = 'exact' AND entity_id = X` 或 `match_mode = 'subtree' AND <X 的祖先链中包含 entity_id>`(用 recursive CTE 沿 parent_id 向上)。父子实体必须同 `entity_type`(CLI 在 `entity add --parent` 拦跨域)。
+
+**`parent_id` 编码持久归属,不追行政架构**:层级表达的是"这个实体是不是某主体的一部分"这种**稳定事实**(高德是阿里收购的、优酷是阿里全资的),**不是**易变的内部组织架构/事业群编制。大集团常年重组(阿里 3 年改 4 次,"1+6+N" 已废→2025 四大板块),若让 parent_id 镜像事业群,每次重组都得重挂、且对 subtree 圈人无收益。中间层只保留**稳定的品牌/业务**节点(阿里国际/阿里云/菜鸟/天猫/淘宝——HR/员工会用来指认雇主的),**不建"电商事业群/本地生活集团/虎鲸文娱"这类行政编制节点**(一重组就过期)。已解散的行政中间层(如"阿里本地生活")应拆掉、其子实体直接上挂稳定母体。
+
+**50:50 合资归属口径**:不确定算哪一半时,归到**员工实际所属/被控制的那一方**——上汽大众的人本质是上汽的员工故挂上汽(不是把上汽大众当独立公司);斑马网络阿里 2019 取得控制权故挂阿里;天猫好房员工在阿里/天猫侧故挂天猫;淘宝天下控股方是浙报(不在阿里体系)故留独立。判据=控制权 + 员工发薪/运营归属,**不是**"各占 50 就留孤儿"。
+
+**子实体该独立存在 vs 是该 merge 的用工空壳(过度拆分判据)**:一个子实体值得单独建,当且仅当它是**有辨识度的雇主品牌**(优酷/菜鸟/大众点评)**或可独立分析的业务线**(摩拜=出行,行业归类与母体不同)。反之,若它只是母公司的**用工/法人壳**——品牌已消亡、业务已并入、且背后员工岗位与母公司无从区分——就该 `entity merge` 进母体,留着只会制造"该壳有 N 人"的假象。判据回到 **ground truth 员工岗位**:酷讯(旅行搜索,2015 被美团收购)的 146 个"员工"零旅行/机票/搜索专属岗、全是通用美团平台岗(商业分析/用户运营/产品策划),证明"北京酷讯科技"只是美团用工壳→已 merge 进美团;摩拜的 223 人有车辆运营/运营策略等出行专属岗→保留独立。**别只看名字/desc 像不像一家,要看员工岗位画像。**
 
 ---
 
@@ -186,7 +192,7 @@ Skill 分三层,不是平级的:
 | `/define-tag <kind> <标签名> [消歧]` | `tag_entity_map`、`tags`、`entities` | 增量维护一个名单标签的标准实体清单 |
 | `/gather-entity-aliases <entity_type> <target_entity> <csv_path>` | `entity_aliases`、`entities` | 从候选 raw_name 中挑出属于目标实体的写法 |
 | `/attribute-raw-name <entity_type> <raw_name> [context_hint]` | `entity_aliases`、`entities` | 给定一个 raw_name,解析它归属哪个 entity(可能新建子 entity) |
-| `/classify-entity-industry <entity_id>` | `tag_entity_map` | 给定一个 company 实体,判它的行业桶(可多个)+ 是不是平台,逐个 `tag link --match-mode exact` |
+| `/classify-entity-industry <entity_id>` | `tag_entity_map` | 给定一个 company 实体,判它的主营行业桶(一个)+ 是不是平台,`tag link --match-mode exact` |
 | `/tag-employee <emp_id> <tag_list>` | `employee_tag_map` | 通读员工 profile 综合判决,hit 写入判定标签 |
 
 `/define-tag` + `/gather-entity-aliases` + `/attribute-raw-name` 合起来维护名单标签的产线("tag → 标准实体 → 原始名变体"三层映射)。`/gather-entity-aliases` 锚在 target entity("这片候选 raw 里哪些属于我?"),`/attribute-raw-name` 锚在 raw_name("我属于哪个 entity?")——前者用于已有 target 批量收集别名(school 域),后者用于单个 raw 反向解析(company 域)。`/classify-entity-industry` 锚在 entity("我属于哪些行业桶 / 是不是平台?"),给已建好的 company 实体贴 `facet=industry`/`business_model` 标签——与 `/attribute-raw-name` 同构(都逐实体研究)但底数是 entity universe 不是 raw 池。`/tag-employee` 是判定标签的执行单元,按 `tags.description` 的边界 prose 判决。
