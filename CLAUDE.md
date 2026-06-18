@@ -186,9 +186,10 @@ Skill 分三层,不是平级的:
 | `/define-tag <kind> <标签名> [消歧]` | `tag_entity_map`、`tags`、`entities` | 增量维护一个名单标签的标准实体清单 |
 | `/gather-entity-aliases <entity_type> <target_entity> <csv_path>` | `entity_aliases`、`entities` | 从候选 raw_name 中挑出属于目标实体的写法 |
 | `/attribute-raw-name <entity_type> <raw_name> [context_hint]` | `entity_aliases`、`entities` | 给定一个 raw_name,解析它归属哪个 entity(可能新建子 entity) |
+| `/classify-entity-industry <entity_id>` | `tag_entity_map` | 给定一个 company 实体,判它的行业桶(可多个)+ 是不是平台,逐个 `tag link --match-mode exact` |
 | `/tag-employee <emp_id> <tag_list>` | `employee_tag_map` | 通读员工 profile 综合判决,hit 写入判定标签 |
 
-`/define-tag` + `/gather-entity-aliases` + `/attribute-raw-name` 合起来维护名单标签的产线("tag → 标准实体 → 原始名变体"三层映射)。`/gather-entity-aliases` 锚在 target entity("这片候选 raw 里哪些属于我?"),`/attribute-raw-name` 锚在 raw_name("我属于哪个 entity?")——前者用于已有 target 批量收集别名(school 域),后者用于单个 raw 反向解析(company 域)。`/tag-employee` 是判定标签的执行单元,按 `tags.description` 的边界 prose 判决。
+`/define-tag` + `/gather-entity-aliases` + `/attribute-raw-name` 合起来维护名单标签的产线("tag → 标准实体 → 原始名变体"三层映射)。`/gather-entity-aliases` 锚在 target entity("这片候选 raw 里哪些属于我?"),`/attribute-raw-name` 锚在 raw_name("我属于哪个 entity?")——前者用于已有 target 批量收集别名(school 域),后者用于单个 raw 反向解析(company 域)。`/classify-entity-industry` 锚在 entity("我属于哪些行业桶 / 是不是平台?"),给已建好的 company 实体贴 `facet=industry`/`business_model` 标签——与 `/attribute-raw-name` 同构(都逐实体研究)但底数是 entity universe 不是 raw 池。`/tag-employee` 是判定标签的执行单元,按 `tags.description` 的边界 prose 判决。
 
 **Layer 2 — 编排(meta,仅在 DataPilot 内运行)**
 
@@ -196,7 +197,7 @@ Skill 分三层,不是平级的:
 |-------|------|
 | `/orchestrate-tagging <task-name>` | 把 Layer 1 原子 skill 包装成 DataPilot batch 批量任务 |
 
-`/orchestrate-tagging` 不是跟 Layer 1 同级的执行 skill——它是**调度层**,读取原子 skill 的 SKILL.md + `prompts/` 下的 domain prompt,生成 batch 所需的 input CSV 和 prompt template,然后调 `datapilot batch create/start`。任务名索引:`define-tag-bootstrap` / `list-tag-bootstrap` / `list-tag-weekly` / `attribute-raw-name-bootstrap` / `assertion-tag-bootstrap` / `assertion-tag-monthly`。
+`/orchestrate-tagging` 不是跟 Layer 1 同级的执行 skill——它是**调度层**,读取原子 skill 的 SKILL.md + `prompts/` 下的 domain prompt,生成 batch 所需的 input CSV 和 prompt template,然后调 `datapilot batch create/start`。任务名索引:`define-tag-bootstrap` / `list-tag-bootstrap` / `list-tag-weekly` / `attribute-raw-name-bootstrap` / `classify-entity-industry-bootstrap` / `assertion-tag-bootstrap` / `assertion-tag-monthly`。SKILL.md 是路由层(场景导向索引 + 平台契约 + 执行框架),每个任务的 playbook 拆在 `skills/orchestrate-tagging/reference/<原子skill>.md`,按 `$ARGUMENTS` 选定任务后按需加载。
 
 ### Prompt 的三层
 
