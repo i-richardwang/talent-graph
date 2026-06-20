@@ -55,8 +55,11 @@ entity_id,canonical_name
 把 `prompts/classify-entity-industry/employer-industry.md` 整篇复制进 `prompt-classify.txt`,末尾追加:
 
 ```
+本次要处理的实体:$BATCH_ITEM_ENTITY_ID
 [skill:classify-entity-industry] $BATCH_ITEM_ENTITY_ID
 ```
+
+第一行一句话点名本批要判的实体(`$BATCH_ITEM_ENTITY_ID` 经 env 展开成真 UUID)。缺这行,部分模型会把末尾 `[Mentioned skill: …] <uuid>` 当成"只给了说明、没指定实体",空跑问一句就退出、静默未挂。
 
 worker 看不到 prompts/ 目录——项目级约束(双轴判据:行业桶边界、平台继承所服务行业、数字原生桶 vs 现实行业的反例、沾边不挂、泛称无实据=主营查不清→不挂)必须整篇复制进来。只写触发命令一行,worker 会凭训练记忆乱归桶、把"在线"一律塞进数字桶、或把查不清的泛称公司硬判一个桶。
 
