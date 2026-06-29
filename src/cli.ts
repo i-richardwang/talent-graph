@@ -1547,6 +1547,7 @@ async function cmdTagLink(opts: Flags) {
   const reasoning = optional(opts, "reasoning");
   const matchModeOpt = optional(opts, "match-mode");
   const matchMode = matchModeOpt ?? "subtree";
+  const replace = flag(opts, "replace");
 
   if (matchMode !== "exact" && matchMode !== "subtree") {
     return emitError("usage_error", {
@@ -1618,6 +1619,69 @@ async function cmdTagLink(opts: Flags) {
       matchMode,
       previous: existing.matchMode,
     });
+  }
+
+  // industry facet 互斥:每个实体只保留一个主营行业桶。要挂的 industry 桶与已有的
+  // 不同时,默认拒绝(第一份胜,防重复分类累加污染),显式 --replace 才覆盖(旧桶同
+  // 事务进 audit_log 可回滚)。只 scope 到 industry——school_tier 等是合法多值,
+  // 同一实体可同属清北/985/211。同一 tag 重挂在上面已走幂等 already_linked,到这里
+  // 的 conflicts 必为"别的 industry 桶"。
+  if (tag.facet === "industry") {
+    const conflicts = await db
+      .select({
+        id: schema.tagEntityMap.id,
+        tagId: schema.tags.id,
+        tagCode: schema.tags.tagCode,
+      })
+      .from(schema.tagEntityMap)
+      .innerJoin(schema.tags, eq(schema.tagEntityMap.tagId, schema.tags.id))
+      .where(
+        and(
+          eq(schema.tagEntityMap.entityId, entityId),
+          eq(schema.tags.facet, "industry"),
+        ),
+      );
+    if (conflicts.length > 0) {
+      const existing = conflicts.map((c) => ({
+        tagId: c.tagId,
+        tagCode: c.tagCode,
+      }));
+      if (!replace) {
+        return emitError("industry_already_classified", {
+          entityId,
+          tagId: tag.id,
+          tagCode: tag.tagCode,
+          existing,
+          hint: "该实体已挂 industry 行业桶,每个实体只保留一个主营桶。确要改判用 `tag link ... --replace`(旧桶进 audit_log 可回滚);若只是重复分类,跳过即可。",
+        });
+      }
+      await db.transaction(async (tx) => {
+        for (const c of conflicts) {
+          const [row] = await tx
+            .select()
+            .from(schema.tagEntityMap)
+            .where(eq(schema.tagEntityMap.id, c.id));
+          if (!row) continue; // 并发已删:无行可快照/删,跳过(beforeData NOT NULL)
+          await tx.insert(schema.auditLog).values({
+            tableName: "tag_entity_map",
+            beforeData: row,
+            command: CLI_INVOCATION,
+          });
+          await tx
+            .delete(schema.tagEntityMap)
+            .where(eq(schema.tagEntityMap.id, c.id));
+        }
+        await tx
+          .insert(schema.tagEntityMap)
+          .values({ tagId: tag.id, entityId, matchMode, reasoning });
+      });
+      return emit("linked_replaced", {
+        tagId: tag.id,
+        entityId,
+        matchMode,
+        replaced: existing,
+      });
+    }
   }
 
   await db
@@ -2408,12 +2472,17 @@ const FULL_EXTRA_HELP = `Write commands  (TALENT_GRAPH_MODE=full)
                                     set (use new tag_code to change).
 
   tag link --tag <code|id> --entity <uuid>
-           [--match-mode <exact|subtree>] [--reasoning]
+           [--match-mode <exact|subtree>] [--reasoning] [--replace]
                                     Attach an entity to a list-mode tag.
                                     --match-mode defaults to 'subtree'
                                     (downstream JOIN traverses entities.parent_id
                                     children). 'exact' = only this entity.
                                     Re-link with new match-mode = update in place.
+                                    industry-facet tags are exclusive per entity
+                                    (one 主营 bucket): linking a different industry
+                                    tag is rejected (industry_already_classified)
+                                    unless --replace is passed (old bucket → audit
+                                    log). Other facets (school_tier ...) unaffected.
                                     Rejects assertion tags.
   tag unlink --tag <code|id> --entity <uuid>
                                     Detach. Records removal in audit log.

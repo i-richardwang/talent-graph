@@ -40,7 +40,7 @@ psql "$DATABASE_URL" -c "
 " -tAF',' --csv > inputs/company-entities-top.csv
 ```
 
-**已分类实体可选剔除**(重跑省算力,`tag link` 幂等故不剔也安全):首灌期行业/模式桶全 0 挂载,无需剔;增量轮想跳过"已判过的实体",在上面查询加 `AND NOT EXISTS (SELECT 1 FROM tag_entity_map m JOIN tags t ON t.id=m.tag_id WHERE m.entity_id=e.id AND t.facet IN ('industry','business_model'))`。
+**重跑必须剔除已分类实体 + input 按 entity_id 去重**(防多桶污染,非可选):行业桶 `facet=industry` 每实体互斥——同实体再挂别的行业桶会被 `tag link` 拒(`industry_already_classified`),重跑已判实体只会刷一堆拒绝噪音、不更新。更早一版"幂等故不剔也安全"是错的:那正是 2026-06 多桶污染的来源——同实体被重复喂进管线、不同次判出分歧桶、旧 `tag link` 不互斥而叠加,洗出 117 个多桶实体(详见用户记忆 project_industry_tags_facet)。所以:① **首灌期**桶全 0 挂载,直接全量;② **增量/重跑**在实体查询加 `AND NOT EXISTS (SELECT 1 FROM tag_entity_map m JOIN tags t ON t.id=m.tag_id WHERE m.entity_id=e.id AND t.facet IN ('industry','business_model'))` 跳过已判;③ input CSV **按 entity_id 去重**(`entity list` / 下面 top-N SQL 本身 distinct,但**别同时起"全量"和"top-N"两个覆盖重叠的 batch**——重叠就是重复喂);④ 真要**改判**判错的实体,走单独的小批、worker 用 `tag link --replace`(旧桶进 audit_log),不要靠重跑整批覆盖。
 
 **batch input CSV**(`entity_id` 必选,`canonical_name` 仅供可读):
 

@@ -12,6 +12,7 @@ export interface MakeTagOpts extends BaseOpts {
   name: string;
   mode: "list" | "assertion";
   kind?: string;
+  facet?: string;
   description: string;
 }
 
@@ -27,6 +28,7 @@ export async function makeTag(opts: MakeTagOpts): Promise<{
     "--description", opts.description,
   ];
   if (opts.kind) args.push("--kind", opts.kind);
+  if (opts.facet) args.push("--facet", opts.facet);
 
   const res = await runCli<{ tagId: string; tagCode: string }>(args, {
     dbUrl: opts.dbUrl,

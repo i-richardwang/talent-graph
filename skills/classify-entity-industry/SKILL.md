@@ -40,7 +40,9 @@ talent-graph tag link --tag <code> --entity <entity_id> \
   --match-mode exact --reasoning "<判决依据>"
 ```
 
-`--match-mode exact` 让归属只作用于**这个实体本身**、不沿父子链覆盖后代——所以判的也只是这个实体自身,不是它母公司(菜鸟挂物流,不连带把阿里其它子公司拖进物流)。重复 link 幂等。
+`--match-mode exact` 让归属只作用于**这个实体本身**、不沿父子链覆盖后代——所以判的也只是这个实体自身,不是它母公司(菜鸟挂物流,不连带把阿里其它子公司拖进物流)。重复 link 同一个桶幂等。
+
+**行业桶每个实体只能挂一个(facet=industry 互斥)**:如果这个实体已经挂了**别的**行业桶,`tag link` 会拒绝并返回 `industry_already_classified`(列出已有的桶)。正常分类时这意味着**这个实体已经判过了 → 当作完成、跳过,不要硬覆盖**。只有当本批就是冲着"改判一个判错的实体"来的(工单明确)、且你有把握新桶更对,才加 `--replace` 覆盖(旧桶进 audit_log 可回滚)。模式轴(`mdl_platform`)是另一条 facet,与行业桶共存、不受此约束。
 
 ## 失败处理
 

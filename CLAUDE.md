@@ -51,6 +51,8 @@ facet 是**可变元数据**(不进 `tag_mode_conflict` 身份判定)、**不参
 
 **硬约定:`facet=industry` 与 `facet=business_model` 标签都严禁用 `/define-tag` 填充。** `/define-tag` 的 skip-not-guess 假设"业内公认闭集 + WebSearch 核出同一份清单";"所有银行 / 所有平台公司"永远不是这种闭集,跑 `/define-tag company 银行` 会被判清单不成立而非零退出。这两条轴都是"给定一个 company 实体、判它属哪些桶 / 是不是平台"的**逐实体分类**任务(与 `/attribute-raw-name` 同构),由 `/classify-entity-industry` 产线写 `tag_entity_map`,挂载默认 `match_mode='exact'`(每个实体独立判,菜鸟挂物流不蹭阿里)。
 
+**`facet=industry` 每实体互斥(CLI 强约束)**:行业轴一个实体只能挂一个主营桶。`tag link` 给已挂行业桶的实体再挂**别的**行业桶时直接拒绝(`industry_already_classified`,列出已有桶),要改判须显式 `tag link --replace`(旧桶同事务进 audit_log 可回滚)。这把"主营单桶"从判据约定升级成机制保证——挡住重复分类把分歧判决叠成多桶(2026-06 洗过一次 117 个多桶实体,根因是旧 `tag link` 不互斥 + 重复喂同一实体)。互斥**只 scope 到 `industry`**:`school_tier` 是合法多值(清华同属清北/985/211),`business_model` 只一个 `平台` tag 故 moot;assertion 标签不涉及。
+
 ### 实体层级 + match_mode
 
 `entities.parent_id` 表达实体的从属关系(如阿里巴巴 → 菜鸟 / 天猫 / 蚂蚁)。`tag_entity_map.match_mode` 决定挂载是否覆盖后代:
